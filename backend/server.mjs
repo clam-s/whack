@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { generateCode } from './openrouter.mjs';
+import { generateCode, generationFallback } from './openrouter.mjs';
 import { runJavaScript } from './runner.mjs';
 
 const { OPENROUTER_API_KEY, OPENROUTER_MODEL, FRONTEND_ORIGIN } = process.env;
@@ -78,19 +78,25 @@ const server = createServer(async (req, res) => {
     if (path === '/api/generate') {
       const text = await readField(req, 'text', 8000);
       if (!OPENROUTER_API_KEY || !OPENROUTER_MODEL) {
-        throw new RequestError(503, 'OpenRouter is not configured');
+        return send(res, 503, { ...generationFallback, error: 'OpenRouter is not configured' });
       }
       if (activeGenerations >= 4) throw new RequestError(429, 'Generation is busy');
       activeGenerations++;
       try {
-        const code = await generateCode(text, {
+        const result = await generateCode(text, {
           apiKey: OPENROUTER_API_KEY,
           model: OPENROUTER_MODEL,
         });
-        return send(res, 200, { language: 'javascript', code });
+        if (result.code === null) {
+          return send(res, 502, { ...result, error: 'OpenRouter did not generate code' });
+        }
+        return send(res, 200, result);
       } catch (error) {
-        if (error.name === 'TimeoutError') throw new RequestError(504, 'Code generation timed out');
-        throw new RequestError(502, 'OpenRouter could not generate code');
+        const timedOut = error.name === 'TimeoutError';
+        return send(res, timedOut ? 504 : 502, {
+          ...generationFallback,
+          error: timedOut ? 'Code generation timed out' : 'OpenRouter could not generate code',
+        });
       } finally {
         activeGenerations--;
       }

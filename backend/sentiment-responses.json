@@ -1,0 +1,10 @@
+{
+  "positive": "SENTIMENT_POSITIVE",
+  "neutral": "SENTIMENT_NEUTRAL",
+  "confused": "SENTIMENT_CONFUSED",
+  "frustrated": "SENTIMENT_FRUSTRATED",
+  "worried": "SENTIMENT_WORRIED",
+  "negative": "SENTIMENT_NEGATIVE",
+  "mixed": "SENTIMENT_MIXED",
+  "unclear": "SENTIMENT_UNCLEAR"
+}

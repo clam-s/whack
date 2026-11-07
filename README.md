@@ -23,10 +23,12 @@ Send JSON with `Content-Type: application/json`. Keep the OpenRouter key in the 
 
 | Route | Request | Successful response |
 | --- | --- | --- |
-| `POST /api/generate` | `{"text":"Print the first five square numbers"}` | `{"language":"javascript","code":"for (let n = 1; n <= 5; n++) console.log(n ** 2)"}` |
+| `POST /api/generate` | `{"text":"Print the first five square numbers"}` | `{"language":"javascript","code":"for (let n = 1; n <= 5; n++) console.log(n ** 2)","responseCode":"SENTIMENT_NEUTRAL","message":"Prints the first five square numbers."}` |
 | `POST /api/execute` | `{"code":"for (let n = 1; n <= 5; n++) console.log(n ** 2)"}` | `{"stdout":"1\n4\n9\n16\n25\n","stderr":"","exitCode":0,"status":"ok","truncated":false}` |
 
-HTTP errors return `{"error":"..."}`. A script that exits with an error still returns an execution result with `status: "error"` and its stderr. A script killed by the time or memory limit can return `status: "killed"`. Each output stream is capped at 16 KiB.
+HTTP errors include an `error` string. Generation failures also return `code: null`, a `responseCode`, and a plain-language `message` for the app to display. Unknown or missing sentiment codes fall back to `SENTIMENT_UNCLEAR`, even if the script was generated successfully. The full list is in [sentiment-responses.json](backend/sentiment-responses.json).
+
+A script that exits with an error still returns an execution result with `status: "error"` and its stderr. A script killed by the time or memory limit can return `status: "killed"`. Each output stream is capped at 16 KiB.
 
 ## Enable local execution
 
