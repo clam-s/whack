@@ -3,3 +3,4 @@
 !.env.example
 /backend/data/*
 !/backend/data/accounts.sqlite
+/backend/data/voice-clips/
