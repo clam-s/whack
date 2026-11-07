@@ -1,11 +1,14 @@
 import { createServer } from 'node:http';
+import { openAccounts } from './accounts.mjs';
 import { generateCode, generationFallback } from './openrouter.mjs';
 import { runJavaScript } from './runner.mjs';
 
 const { OPENROUTER_API_KEY, OPENROUTER_MODEL, FRONTEND_ORIGIN } = process.env;
 const executionEnabled = process.env.ENABLE_CODE_EXECUTION === 'true';
 const port = Number(process.env.PORT ?? 3001);
+const accounts = openAccounts(process.env.ACCOUNT_DB_PATH);
 let activeGenerations = 0;
+let activeAccountRequests = 0;
 let executing = false;
 
 class RequestError extends Error {
@@ -20,7 +23,7 @@ function send(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-async function readField(req, field, limit) {
+async function readBody(req) {
   if (req.headers['content-type']?.split(';')[0].trim().toLowerCase() !== 'application/json') {
     throw new RequestError(415, 'Expected application/json');
   }
@@ -36,13 +39,14 @@ async function readField(req, field, limit) {
     chunks.push(chunk);
   }
 
-  let body;
   try {
-    body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
   } catch {
     throw new RequestError(400, 'Invalid JSON');
   }
+}
 
+function readField(body, field, limit) {
   const value = body?.[field];
   if (typeof value !== 'string' || !value.trim() || Buffer.byteLength(value) > limit) {
     throw new RequestError(400, `${field} must be a non-empty string of at most ${limit} bytes`);
@@ -59,7 +63,7 @@ const server = createServer(async (req, res) => {
   if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
 
   const path = req.url?.split('?')[0];
-  if (path !== '/api/generate' && path !== '/api/execute') {
+  if (path !== '/api/generate' && path !== '/api/execute' && path !== '/api/account') {
     return send(res, 404, { error: 'Route not found' });
   }
   if (req.method === 'OPTIONS') {
@@ -75,8 +79,24 @@ const server = createServer(async (req, res) => {
   }
 
   try {
+    if (path === '/api/account') {
+      res.setHeader('Cache-Control', 'no-store');
+      const body = await readBody(req);
+      const userId = readField(body, 'userId', 100);
+      const password = readField(body, 'password', 256);
+      if (activeAccountRequests >= 4) throw new RequestError(429, 'Account lookup is busy');
+      activeAccountRequests++;
+      try {
+        const account = await accounts.fetchAccount(userId, password);
+        if (!account) throw new RequestError(401, 'Invalid user ID or password');
+        return send(res, 200, account);
+      } finally {
+        activeAccountRequests--;
+      }
+    }
+
     if (path === '/api/generate') {
-      const text = await readField(req, 'text', 8000);
+      const text = readField(await readBody(req), 'text', 8000);
       if (!OPENROUTER_API_KEY || !OPENROUTER_MODEL) {
         return send(res, 503, { ...generationFallback, error: 'OpenRouter is not configured' });
       }
@@ -103,7 +123,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (!executionEnabled) throw new RequestError(503, 'Code execution is disabled');
-    const code = await readField(req, 'code', 16_384);
+    const code = readField(await readBody(req), 'code', 16_384);
     if (executing) throw new RequestError(429, 'Execution is busy');
     executing = true;
     try {
@@ -120,6 +140,8 @@ const server = createServer(async (req, res) => {
     return send(res, 500, { error: 'Unexpected server error' });
   }
 });
+
+server.on('close', () => accounts.close());
 
 server.listen(port, '127.0.0.1', () => {
   console.log(`Backend listening on http://127.0.0.1:${server.address().port}`);
