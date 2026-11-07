@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { openAccounts } from './accounts.mjs';
-import { generateCode, generationFallback } from './openrouter.mjs';
+import { generateCode, generationFallback, isAccountIntent } from './openrouter.mjs';
 import { runJavaScript } from './runner.mjs';
 
 const { OPENROUTER_API_KEY, OPENROUTER_MODEL, FRONTEND_ORIGIN } = process.env;
@@ -107,7 +107,7 @@ const server = createServer(async (req, res) => {
           apiKey: OPENROUTER_API_KEY,
           model: OPENROUTER_MODEL,
         });
-        if (result.code === null) {
+        if (result.code === null && !isAccountIntent(result.responseCode)) {
           return send(res, 502, { ...result, error: 'OpenRouter did not generate code' });
         }
         return send(res, 200, result);

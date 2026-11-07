@@ -24,10 +24,11 @@ Send JSON with `Content-Type: application/json`. Keep the OpenRouter key in the 
 
 | Route | Request | Successful response |
 | --- | --- | --- |
-| `POST /api/generate` | `{"text":"Print the first five square numbers"}` | `{"language":"javascript","code":"for (let n = 1; n <= 5; n++) console.log(n ** 2)","responseCode":"SENTIMENT_NEUTRAL","message":"Prints the first five square numbers."}` |
+| `POST /api/generate` | `{"text":"Print the first five square numbers"}` | `{"language":"javascript","code":"for (let n = 1; n <= 5; n++) console.log(n ** 2)","responseCode":"RESPONSE_GENERATE_CODE","message":"Prints the first five square numbers."}` |
+| `POST /api/generate` | `{"text":"Show my balance"}` | `{"language":"javascript","code":null,"responseCode":"RESPONCE_SHOW_BALANCE","message":"Show the account balance."}` |
 | `POST /api/execute` | `{"code":"for (let n = 1; n <= 5; n++) console.log(n ** 2)"}` | `{"stdout":"1\n4\n9\n16\n25\n","stderr":"","exitCode":0,"status":"ok","truncated":false}` |
 
-HTTP errors include an `error` string. Generation failures also return `code: null`, a `responseCode`, and a plain-language `message` for the app to display. Unknown or missing sentiment codes fall back to `SENTIMENT_UNCLEAR`, even if the script was generated successfully. The full list is in [sentiment-responses.json](backend/sentiment-responses.json).
+Recognized account requests return `200` with `code: null` and an intent `responseCode`. The frontend can use that code to choose what to display from `/api/account`. Unknown or missing intent codes fall back to `RESPONSE_UNKNOWN_INTENT`. HTTP errors include an `error` string, and generation failures also include a plain-language `message` for the app to display. The full list is in [intent-responses.json](backend/intent-responses.json).
 
 A script that exits with an error still returns an execution result with `status: "error"` and its stderr. A script killed by the time or memory limit can return `status: "killed"`. Each output stream is capped at 16 KiB.
 

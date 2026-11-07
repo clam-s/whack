@@ -44,8 +44,9 @@ def main():
     if not args.query.strip():
         parser.error('The query cannot be blank.')
 
-    mapping_path = ROOT / 'backend' / 'sentiment-responses.json'
-    sentiment_codes = ', '.join(json.loads(mapping_path.read_text(encoding='utf-8')).values())
+    mapping_path = ROOT / 'backend' / 'intent-responses.json'
+    intents = json.loads(mapping_path.read_text(encoding='utf-8'))
+    generate_code = intents['generate JavaScript from an instruction']
     request = Request(
         'https://openrouter.ai/api/v1/chat/completions',
         data=json.dumps({
@@ -54,12 +55,12 @@ def main():
                 {
                     'role': 'system',
                     'content': (
-                        'Convert the query into a standalone JavaScript ES module for Node.js 22. '
-                        'Use built-in modules, avoid interactive input, and print with console.log. '
-                        'Return only JSON with code (raw JavaScript or null if unavailable), '
-                        f'responseCode (one of {sentiment_codes}), and message (a short plain-language '
-                        'description or clarification question). Choose the responseCode based on the '
-                        'sentiment expressed in the query.'
+                        f'Classify what the user wants to do using this intent map: {json.dumps(intents)}. '
+                        'Return only JSON with responseCode (the matching code), message (one short '
+                        'plain-language sentence describing the action or asking for clarification), and code. '
+                        f'For {generate_code}, write a standalone JavaScript ES module for Node.js 22 '
+                        'using built-in modules, no interactive input, and console.log for results. '
+                        'For every other intent, set code to null.'
                     ),
                 },
                 {'role': 'user', 'content': args.query},

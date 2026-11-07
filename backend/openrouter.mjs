@@ -1,11 +1,17 @@
-import sentimentResponses from './sentiment-responses.json' with { type: 'json' };
+import intentResponses from './intent-responses.json' with { type: 'json' };
 
-const sentimentCodes = Object.values(sentimentResponses);
+const intentCodes = Object.values(intentResponses);
+const unknownIntent = intentResponses['unclear or unsupported request'];
+const generateIntent = intentResponses['generate JavaScript from an instruction'];
+
+export function isAccountIntent(code) {
+  return code !== unknownIntent && code !== generateIntent && intentCodes.includes(code);
+}
 
 export const generationFallback = {
   language: 'javascript',
   code: null,
-  responseCode: sentimentResponses.unclear,
+  responseCode: unknownIntent,
   message: 'No script is available. Try describing one specific task, or try again in a moment.',
 };
 
@@ -22,7 +28,7 @@ export async function generateCode(text, { apiKey, model }) {
       messages: [
         {
           role: 'system',
-          content: `Convert the transcript into a standalone JavaScript ES module for Node.js 22. Use built-in Node.js modules, avoid interactive input, and print results with console.log. Return only a JSON object with three fields: code (raw JavaScript, or null if the request cannot be turned into a script), responseCode (one of ${sentimentCodes.join(', ')} based on the sentiment expressed in the transcript), and message (one short plain-language sentence describing what the script does or asking for clarification if code is null).`,
+          content: `Classify what the user wants to do using this intent map: ${JSON.stringify(intentResponses)}. Return only a JSON object with responseCode (the matching code), message (one short plain-language sentence describing the action or asking for clarification), and code. For ${generateIntent}, write a standalone JavaScript ES module for Node.js 22 using built-in modules, no interactive input, and console.log for results. For every other intent, set code to null.`,
         },
         { role: 'user', content: text },
       ],
@@ -46,17 +52,27 @@ export async function generateCode(text, { apiKey, model }) {
   const trimmed = content.trim();
   const fence = trimmed.match(/^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/i);
   const generated = JSON.parse(fence ? fence[1] : trimmed);
+  const responseCode = intentCodes.includes(generated?.responseCode) ? generated.responseCode : unknownIntent;
+  const message = typeof generated?.message === 'string' ? generated.message.trim() : '';
+  if (isAccountIntent(responseCode)) {
+    return {
+      language: 'javascript',
+      code: null,
+      responseCode,
+      message: message && message.length <= 400 ? message : 'Account request recognized.',
+    };
+  }
+
   const code = typeof generated?.code === 'string' ? generated.code.trim() : generated?.code;
   if (code !== null && (typeof code !== 'string' || !code || code.startsWith('```') || Buffer.byteLength(code) > 16_384)) {
     throw new Error('OpenRouter returned an invalid script');
   }
 
-  const message = typeof generated.message === 'string' ? generated.message.trim() : '';
   const defaultMessage = code === null ? generationFallback.message : 'JavaScript is ready.';
   return {
     language: 'javascript',
     code,
-    responseCode: sentimentCodes.includes(generated.responseCode) ? generated.responseCode : sentimentResponses.unclear,
+    responseCode,
     message: message && message.length <= 400 ? message : defaultMessage,
   };
 }

@@ -1,10 +1,9 @@
 {
-  "generate code from an instruction": "GENERATE_CODE",
-  "run the generated code": "RUN_CODE",
-  "open a web page": "OPEN_PAGE",
-  "activate a button": "ACTIVATE_BUTTON",
-  "focus a text input": "FOCUS_INPUT",
-  "dictate text into the focused input": "DICTATE_TEXT",
-  "simplify text": "SIMPLIFY_TEXT",
-  "unclear or unsupported request": "UNKNOWN_INTENT"
+	"show balance": "RESPONCE_SHOW_BALANCE",
+	"show recent transaction": "REPONCE_SHOW_TRANSACTIONS",
+	"show account holder name": "RESPONSE_SHOW_NAME",
+	"show my user ID": "RESPONSE_SHOW_USER_ID",
+	"show account summary": "RESPONSE_SHOW_ACCOUNT_SUMMARY",
+	"generate JavaScript from an instruction": "RESPONSE_GENERATE_CODE",
+	"unclear or unsupported request": "RESPONSE_UNKNOWN_INTENT"
 }
