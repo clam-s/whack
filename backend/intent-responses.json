@@ -1,5 +1,4 @@
 {
-	"show balance": "RESPONCE_SHOW_BALANCE",
 	"show recent transaction": "REPONCE_SHOW_TRANSACTIONS",
 	"show account holder name": "RESPONSE_SHOW_NAME",
 	"show my user ID": "RESPONSE_SHOW_USER_ID",

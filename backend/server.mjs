@@ -1,17 +1,14 @@
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { openAccounts } from './accounts.mjs';
-import { generateCode, generationFallback, isAccountIntent } from './openrouter.mjs';
-import { runJavaScript } from './runner.mjs';
+import { classifyNavigation, generateCode, generationFallback, isAccountIntent, navigationFallback } from './openrouter.mjs';
 
 const { OPENROUTER_API_KEY, OPENROUTER_MODEL, FRONTEND_ORIGIN } = process.env;
-const executionEnabled = process.env.ENABLE_CODE_EXECUTION === 'true';
 const port = Number(process.env.PORT ?? 3001);
 const accounts = openAccounts(process.env.ACCOUNT_DB_PATH);
 const dashboard = readFileSync(new URL('../frontend/index.html', import.meta.url));
 let activeGenerations = 0;
 let activeAccountRequests = 0;
-let executing = false;
 
 class RequestError extends Error {
   constructor(status, message) {
@@ -21,6 +18,7 @@ class RequestError extends Error {
 }
 
 function send(res, status, body) {
+  if (body.responseCode) console.info(`[intent] ${body.responseCode} (HTTP ${status})`);
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(body));
 }
@@ -71,7 +69,7 @@ const server = createServer(async (req, res) => {
   }
   if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
 
-  if (path !== '/api/generate' && path !== '/api/execute' && path !== '/api/account') {
+  if (path !== '/api/generate' && path !== '/api/intent' && path !== '/api/account') {
     return send(res, 404, { error: 'Route not found' });
   }
   if (req.method === 'OPTIONS') {
@@ -103,43 +101,32 @@ const server = createServer(async (req, res) => {
       }
     }
 
-    if (path === '/api/generate') {
-      const text = readField(await readBody(req), 'text', 8000);
-      if (!OPENROUTER_API_KEY || !OPENROUTER_MODEL) {
-        return send(res, 503, { ...generationFallback, error: 'OpenRouter is not configured' });
-      }
-      if (activeGenerations >= 4) throw new RequestError(429, 'Generation is busy');
-      activeGenerations++;
-      try {
-        const result = await generateCode(text, {
-          apiKey: OPENROUTER_API_KEY,
-          model: OPENROUTER_MODEL,
-        });
-        if (result.code === null && !isAccountIntent(result.responseCode)) {
-          return send(res, 502, { ...result, error: 'OpenRouter did not generate code' });
-        }
-        return send(res, 200, result);
-      } catch (error) {
-        const timedOut = error.name === 'TimeoutError';
-        return send(res, timedOut ? 504 : 502, {
-          ...generationFallback,
-          error: timedOut ? 'Code generation timed out' : 'OpenRouter could not generate code',
-        });
-      } finally {
-        activeGenerations--;
-      }
+    const text = readField(await readBody(req), 'text', 8000);
+    const navigation = path === '/api/intent';
+    const fallback = navigation ? navigationFallback : generationFallback;
+    if (!OPENROUTER_API_KEY || !OPENROUTER_MODEL) {
+      return send(res, 503, { ...fallback, error: 'OpenRouter is not configured' });
     }
-
-    if (!executionEnabled) throw new RequestError(503, 'Code execution is disabled');
-    const code = readField(await readBody(req), 'code', 16_384);
-    if (executing) throw new RequestError(429, 'Execution is busy');
-    executing = true;
+    if (activeGenerations >= 4) throw new RequestError(429, 'OpenRouter is busy');
+    activeGenerations++;
     try {
-      return send(res, 200, await runJavaScript(code));
-    } catch {
-      throw new RequestError(503, 'Node.js runner is unavailable');
+      const handleRequest = navigation ? classifyNavigation : generateCode;
+      const result = await handleRequest(text, {
+        apiKey: OPENROUTER_API_KEY,
+        model: OPENROUTER_MODEL,
+      });
+      if (!navigation && result.code === null && !isAccountIntent(result.responseCode)) {
+        return send(res, 502, { ...result, error: 'OpenRouter did not generate code' });
+      }
+      return send(res, 200, result);
+    } catch (error) {
+      const timedOut = error.name === 'TimeoutError';
+      return send(res, timedOut ? 504 : 502, {
+        ...fallback,
+        error: timedOut ? 'OpenRouter request timed out' : 'OpenRouter could not process the command',
+      });
     } finally {
-      executing = false;
+      activeGenerations--;
     }
   } catch (error) {
     if (error instanceof RequestError) {

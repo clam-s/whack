@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Capital One Dashboard | Accessibility & Voice Terminal</title>
+  <title>Capital One Dashboard | Accessibility & Voice Assistant</title>
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -32,6 +32,18 @@
         }
       }
     };
+  </script>
+  <script>
+    try {
+      if (localStorage.getItem('whack.highContrast') === 'true') {
+        document.documentElement.classList.add('high-contrast');
+      }
+      if (localStorage.getItem('whack.magnification') === 'true') {
+        document.documentElement.classList.add('magnification');
+      }
+    } catch {
+      // The toggle still works when storage is unavailable.
+    }
   </script>
   <style>
     .hidden, [hidden] { display: none !important; }
@@ -77,6 +89,86 @@
       0%, 100% { transform: scaleY(0.4); }
       50% { transform: scaleY(1); }
     }
+    .high-contrast {
+      color-scheme: dark;
+      --contrast-surface: #000;
+      --contrast-text: #fff;
+      --contrast-accent: #ffea00;
+    }
+    .high-contrast body {
+      background: var(--contrast-surface) !important;
+      color: var(--contrast-text) !important;
+    }
+    .high-contrast body * {
+      color: inherit !important;
+      border-color: currentColor !important;
+      box-shadow: none !important;
+    }
+    .high-contrast [class*="bg-"] {
+      background: transparent !important;
+    }
+    .high-contrast :is(header, dialog, #voiceConsoleDrawer, #statusNotification, [class~="bg-white"]) {
+      background: var(--contrast-surface) !important;
+    }
+    .high-contrast dialog::backdrop {
+      background: rgb(0 0 0 / 85%);
+    }
+    .high-contrast :is(a, summary) {
+      color: var(--contrast-accent) !important;
+      text-decoration: underline;
+    }
+    .high-contrast :is(button, input, textarea, dialog, pre) {
+      border: 1px solid currentColor !important;
+    }
+    .high-contrast :is(input, textarea)::placeholder {
+      color: #ddd !important;
+      opacity: 1;
+    }
+    .high-contrast :is(button:hover:not(:disabled), button[aria-pressed="true"], [role="tab"][aria-selected="true"]) {
+      background: var(--contrast-accent) !important;
+      color: var(--contrast-surface) !important;
+    }
+    .high-contrast button:disabled {
+      opacity: 1;
+      border-style: dashed !important;
+    }
+    .high-contrast :focus-visible {
+      outline: 3px solid var(--contrast-accent) !important;
+      outline-offset: 3px;
+    }
+    .high-contrast svg [fill]:not([fill="none"]) {
+      fill: currentColor;
+    }
+    .high-contrast svg [stroke]:not([stroke="none"]) {
+      stroke: currentColor;
+    }
+    .high-contrast svg .gauge-circle {
+      stroke: var(--contrast-accent);
+    }
+    .high-contrast [role="progressbar"] {
+      border: 1px solid currentColor;
+    }
+    .high-contrast [role="progressbar"] > div {
+      background: var(--contrast-accent) !important;
+    }
+    .magnification [data-magnify] {
+      position: relative;
+    }
+    .magnification [data-magnify="figure"] {
+      display: inline-block;
+      transform-origin: left center;
+      --magnification-scale: 1.25;
+    }
+    .magnification [data-magnify]:focus-visible {
+      z-index: 1;
+      scale: var(--magnification-scale, 1.12);
+    }
+    @media (hover: hover) {
+      .magnification [data-magnify]:hover:not(:disabled) {
+        z-index: 1;
+        scale: var(--magnification-scale, 1.12);
+      }
+    }
   </style>
 </head>
 <body class="bg-[#003860] text-slate-900 font-sans min-h-screen flex flex-col antialiased">
@@ -103,9 +195,9 @@
         
         <!-- Live Voice Assistant Quick Trigger Button (Accessibility feature) -->
         <button
-          id="toggleAssistantBtn"
+          id="toggleAssistantBtn" data-magnify
           class="inline-flex items-center space-x-2 px-3.5 py-2 bg-c1-navy hover:bg-c1-lightNavy text-white font-medium text-xs rounded-full shadow-sm transition active:scale-95 focus:ring-2 focus:ring-offset-2 focus:ring-c1-navy min-h-[40px]"
-          aria-label="Toggle Voice & Code Assistant Console"
+          aria-label="Toggle Voice Assistant Console"
           aria-expanded="false" aria-controls="voiceConsoleDrawer"
         >
           <span id="voiceNavPulseDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
@@ -113,7 +205,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
           <span class="font-semibold">Voice Assistant</span>
-          <span class="bg-c1-darkNavy/60 text-[10px] font-mono px-1.5 py-0.5 rounded-sm text-slate-200">Terminal</span>
+          <span class="bg-c1-darkNavy/60 text-[10px] font-mono px-1.5 py-0.5 rounded-sm text-slate-200">Commands</span>
         </button>
 
         <!-- Need Help -->
@@ -125,7 +217,7 @@
         </a>
 
         <!-- User Profile Pill "LP" -->
-        <button id="profileBtn" class="flex items-center space-x-1 focus:ring-2 focus:ring-c1-navy p-0.5 rounded-full" aria-label="Account sign-in and details">
+        <button id="profileBtn" data-magnify class="flex items-center space-x-1 focus:ring-2 focus:ring-c1-navy p-0.5 rounded-full" aria-label="Account sign-in and details">
           <div id="profileInitials" class="w-9 h-9 rounded-full bg-c1-navy text-white font-bold text-xs flex items-center justify-center border-2 border-slate-100">
             Demo
           </div>
@@ -162,13 +254,15 @@
           <span class="w-2.5 h-6 bg-c1-navy rounded-xs"></span>
           <div>
             <div class="flex items-center space-x-2">
-              <h2 class="text-sm font-bold uppercase tracking-wider text-c1-navy">Accessibility Speech & Code Terminal</h2>
+              <h2 class="text-sm font-bold uppercase tracking-wider text-c1-navy">Accessibility Voice Console</h2>
             </div>
-            <p class="text-xs text-slate-500">Navigate by voice, look up your demo account, or generate JavaScript.</p>
+            <p class="text-xs text-slate-500">Navigate the dashboard or look up your demo account by voice.</p>
           </div>
         </div>
 
-        <div class="flex items-center space-x-2 text-xs">
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <button id="highContrastToggle" type="button" aria-pressed="false" class="rounded border border-slate-300 px-3 py-2">High contrast</button>
+          <button id="magnificationToggle" type="button" aria-pressed="false" class="rounded border border-slate-300 px-3 py-2">Magnify on hover</button>
           <button id="readAloudToggle" type="button" aria-pressed="false" class="rounded border border-slate-300 px-3 py-2 aria-pressed:bg-c1-navy aria-pressed:text-white disabled:opacity-50">Read aloud</button>
           <button id="readTabBtn" type="button" disabled class="rounded border border-slate-300 px-3 py-2 disabled:opacity-50">Read this tab</button>
           <!-- Backend Status -->
@@ -186,11 +280,11 @@
       </div>
 
       <!-- Input Row: Voice Button + Textarea -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      <div class="max-w-3xl">
         
         <!-- Speech & Prompt Input (Column) -->
-        <div class="lg:col-span-5 space-y-3">
-          <p id="help" tabindex="-1" class="text-xs text-slate-600">Say “open savings”, “open credit cards”, “open loans”, or “open rewards” to switch tabs. “Show balance” and “show recent transactions” return to checking.</p>
+        <div class="space-y-3">
+          <p id="help" tabindex="-1" class="text-xs text-slate-600">Try “what’s my balance?”, “recent transactions”, or “take me to savings”. Common phrases run immediately without calling the model.</p>
           <div class="flex items-center justify-between text-xs">
             <label for="transcriptInput" class="font-semibold text-slate-700 uppercase tracking-wider text-[11px]">Speech Transcript / Command</label>
             <span id="charCountDisplay" class="font-mono text-slate-500 text-[11px]">0 / 8,000 bytes</span>
@@ -200,7 +294,7 @@
             <textarea
               id="transcriptInput"
               rows="3"
-              placeholder="Try “show balance”, “show recent transactions”, or “print the first five square numbers”."
+              placeholder="Try “show balance”, “show recent transactions”, or “open savings”."
               class="w-full p-3 border border-slate-300 rounded-sm text-xs sm:text-sm font-sans focus:ring-2 focus:ring-c1-navy focus:border-c1-navy"
             ></textarea>
             
@@ -216,7 +310,7 @@
           <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
             <span class="text-slate-500 font-semibold uppercase text-[10px]">Quick:</span>
             <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Show balance</button>
-            <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Print the first five square numbers</button>
+            <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Open savings</button>
             <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Show recent transactions</button>
           </div>
 
@@ -224,7 +318,7 @@
           <div class="flex items-center space-x-2 pt-1">
             <!-- Voice Dictation Button (44px min height for accessibility) -->
             <button
-              id="voiceDictationBtn"
+              id="voiceDictationBtn" data-magnify
               type="button"
               class="flex-1 inline-flex items-center justify-center space-x-2 px-4 py-2.5 bg-c1-navy hover:bg-c1-lightNavy active:bg-c1-darkNavy text-white font-medium text-xs rounded-sm shadow-xs min-h-[44px] transition"
             >
@@ -236,56 +330,16 @@
 
             <!-- Send command Button -->
             <button
-              id="generateBtn"
+              id="sendCommandBtn" data-magnify
               type="button"
               class="flex-1 inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 active:bg-black text-white font-medium text-xs rounded-sm shadow-xs min-h-[44px] transition disabled:opacity-50"
             >
-              <svg id="generateSpinner" class="hidden w-3.5 h-3.5 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-              <span id="generateBtnText">Send command</span>
+              <svg id="commandSpinner" class="hidden w-3.5 h-3.5 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+              <span id="sendCommandLabel">Send command</span>
             </button>
           </div>
         </div>
 
-        <!-- Generated Code Pane (Middle) -->
-        <div class="lg:col-span-4 bg-slate-900 rounded-sm border border-slate-700 flex flex-col min-h-[220px]">
-          <div class="bg-slate-950 px-3 py-1.5 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-300">
-            <span class="font-mono text-emerald-400 font-semibold">Generated JS (ESM)</span>
-            <div class="flex items-center space-x-2">
-              <span id="intentPill" class="hidden font-mono text-[9px] px-1.5 py-0.5 bg-c1-lightNavy text-white rounded-xs"></span>
-              <button id="copyScriptBtn" class="text-slate-400 hover:text-white underline text-[10px]">Copy</button>
-            </div>
-          </div>
-          <textarea
-            id="codeOutputArea"
-            class="flex-1 w-full bg-slate-900 text-slate-100 p-3 font-mono text-xs leading-relaxed resize-none focus:outline-none border-none placeholder:text-slate-600"
-            placeholder="// Generated Node.js 22 script will appear here..."
-          ></textarea>
-          <div class="bg-slate-950/80 px-3 py-1.5 border-t border-slate-800 flex items-center justify-between">
-            <span class="text-[10px] text-slate-400 font-mono">Sandbox: Docker (5s limit)</span>
-            <button
-              id="executeBtn"
-              class="px-3 py-1 bg-c1-green hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-[11px] rounded-xs shadow-xs min-h-[32px] inline-flex items-center space-x-1"
-            >
-              <svg id="executeSpinner" class="hidden w-3 h-3 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-              <span>Run Code</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Terminal Execution Output (Right) -->
-        <div class="lg:col-span-3 bg-slate-950 rounded-sm border border-slate-800 flex flex-col min-h-[220px]">
-          <div class="bg-slate-900 px-3 py-1.5 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-300">
-            <span class="font-mono text-slate-200 font-semibold">Execution Output</span>
-            <div class="flex items-center space-x-1 font-mono text-[10px]">
-              <span id="exitBadge" class="px-1.5 py-0.2 bg-slate-800 text-slate-300 rounded-xs">exit: -</span>
-            </div>
-          </div>
-          <pre id="terminalOutput" class="flex-1 p-3 font-mono text-xs text-slate-200 overflow-auto whitespace-pre-wrap break-all leading-relaxed placeholder:text-slate-600">Output from Docker container will display here.</pre>
-          <div class="bg-slate-900/60 px-3 py-1 border-t border-slate-800 text-[10px] text-slate-400 flex justify-between font-mono">
-            <span id="runtimeLabel">Runtime: -</span>
-            <button id="clearTerminalBtn" class="hover:text-slate-200">Clear</button>
-          </div>
-        </div>
 
       </div>
 
@@ -304,7 +358,7 @@
         <div class="space-y-1" role="tablist" aria-label="Account tabs" aria-orientation="vertical">
           
           <!-- Checking... 0096 (Active Item) -->
-          <button id="tab-checking" type="button" role="tab" aria-controls="panel-checking" aria-selected="true" tabindex="0" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
+          <button id="tab-checking" data-magnify type="button" role="tab" aria-controls="panel-checking" aria-selected="true" tabindex="0" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
             <svg class="w-5 h-5 text-slate-100 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
@@ -312,7 +366,7 @@
           </button>
 
           <!-- Savings... 3886 -->
-          <button id="tab-savings" type="button" role="tab" aria-controls="panel-savings" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
+          <button id="tab-savings" data-magnify type="button" role="tab" aria-controls="panel-savings" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
             <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -320,7 +374,7 @@
           </button>
 
           <!-- Credit Cards... 9794 -->
-          <button id="tab-credit-cards" type="button" role="tab" aria-controls="panel-credit-cards" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
+          <button id="tab-credit-cards" data-magnify type="button" role="tab" aria-controls="panel-credit-cards" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
             <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
@@ -328,7 +382,7 @@
           </button>
 
           <!-- Loans... 2284 -->
-          <button id="tab-loans" type="button" role="tab" aria-controls="panel-loans" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
+          <button id="tab-loans" data-magnify type="button" role="tab" aria-controls="panel-loans" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
             <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
             </svg>
@@ -336,7 +390,7 @@
           </button>
 
           <!-- Rewards & Deals -->
-          <button id="tab-rewards" type="button" role="tab" aria-controls="panel-rewards" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
+          <button id="tab-rewards" data-magnify type="button" role="tab" aria-controls="panel-rewards" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
             <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
             </svg>
@@ -396,7 +450,7 @@
           </div>
 
           <div>
-            <div id="accountBalance" class="text-3xl sm:text-4xl font-extrabold text-[#004879] tracking-tight">—</div>
+            <div id="accountBalance" data-magnify="figure" tabindex="0" class="text-3xl sm:text-4xl font-extrabold text-[#004879] tracking-tight">—</div>
             <div class="text-xs text-slate-500 font-medium mt-0.5">Available Balance</div>
           </div>
 
@@ -607,7 +661,7 @@
         <h2 class="text-xl font-bold text-slate-900">Savings</h2>
         <p class="text-sm text-slate-600">Sample account ending in 3886</p>
         <dl class="grid gap-3 sm:grid-cols-2">
-          <div><dt>Available balance</dt><dd class="text-xl font-bold text-c1-navy">£2,500.00</dd></div>
+          <div><dt>Available balance</dt><dd data-magnify="figure" tabindex="0" class="text-xl font-bold text-c1-navy">£2,500.00</dd></div>
           <div><dt>Last deposit</dt><dd class="font-semibold">£150.00</dd></div>
         </dl>
         <details><summary class="cursor-pointer font-semibold">Savings goal</summary><p>£2,500 saved toward a £4,000 emergency fund.</p></details>
@@ -617,7 +671,7 @@
         <h2 class="text-xl font-bold text-slate-900">Credit Cards</h2>
         <p class="text-sm text-slate-600">Sample card ending in 9794</p>
         <dl class="grid gap-3 sm:grid-cols-2">
-          <div><dt>Current balance</dt><dd class="text-xl font-bold text-c1-navy">£380.50</dd></div>
+          <div><dt>Current balance</dt><dd data-magnify="figure" tabindex="0" class="text-xl font-bold text-c1-navy">£380.50</dd></div>
           <div><dt>Available credit</dt><dd class="font-semibold">£1,619.50</dd></div>
         </dl>
         <details><summary class="cursor-pointer font-semibold">Payment details</summary><p>Example minimum payment: £25.00.</p></details>
@@ -627,7 +681,7 @@
         <h2 class="text-xl font-bold text-slate-900">Loans</h2>
         <p class="text-sm text-slate-600">Sample personal loan ending in 2284</p>
         <dl class="grid gap-3 sm:grid-cols-2">
-          <div><dt>Remaining balance</dt><dd class="text-xl font-bold text-c1-navy">£3,200.00</dd></div>
+          <div><dt>Remaining balance</dt><dd data-magnify="figure" tabindex="0" class="text-xl font-bold text-c1-navy">£3,200.00</dd></div>
           <div><dt>Monthly payment</dt><dd class="font-semibold">£160.00</dd></div>
         </dl>
       </section>
@@ -635,7 +689,7 @@
       <section id="panel-rewards" role="tabpanel" aria-labelledby="tab-rewards" tabindex="0" hidden class="lg:col-span-9 xl:col-span-10 bg-white rounded-xl border border-slate-200 p-5 space-y-4 self-start">
         <h2 class="text-xl font-bold text-slate-900">Rewards &amp; Deals</h2>
         <p class="text-sm text-slate-600">Sample rewards activity</p>
-        <dl><dt>Points available</dt><dd class="text-xl font-bold text-c1-navy">1,250 points</dd></dl>
+        <dl><dt>Points available</dt><dd data-magnify="figure" tabindex="0" class="text-xl font-bold text-c1-navy">1,250 points</dd></dl>
         <details><summary class="cursor-pointer font-semibold">Example deal</summary><p>Earn double points on a qualifying grocery purchase.</p></details>
       </section>
 
@@ -680,18 +734,9 @@
       const listeningBadge = document.getElementById('listeningBadge');
       const transcriptInput = document.getElementById('transcriptInput');
       const charCountDisplay = document.getElementById('charCountDisplay');
-      const generateBtn = document.getElementById('generateBtn');
-      const generateBtnText = document.getElementById('generateBtnText');
-      const generateSpinner = document.getElementById('generateSpinner');
-      const codeOutputArea = document.getElementById('codeOutputArea');
-      const intentPill = document.getElementById('intentPill');
-      const copyScriptBtn = document.getElementById('copyScriptBtn');
-      const executeBtn = document.getElementById('executeBtn');
-      const executeSpinner = document.getElementById('executeSpinner');
-      const terminalOutput = document.getElementById('terminalOutput');
-      const exitBadge = document.getElementById('exitBadge');
-      const runtimeLabel = document.getElementById('runtimeLabel');
-      const clearTerminalBtn = document.getElementById('clearTerminalBtn');
+      const sendCommandBtn = document.getElementById('sendCommandBtn');
+      const sendCommandLabel = document.getElementById('sendCommandLabel');
+      const commandSpinner = document.getElementById('commandSpinner');
       const statusNotification = document.getElementById('statusNotification');
       const notifText = document.getElementById('notifText');
       const notifIcon = document.getElementById('notifIcon');
@@ -699,6 +744,22 @@
       const drawerStatusDot = document.getElementById('drawerStatusDot');
       const drawerStatusLabel = document.getElementById('drawerStatusLabel');
       const voiceNavPulseDot = document.getElementById('voiceNavPulseDot');
+      const themeClasses = document.documentElement.classList;
+      function bindDisplayToggle(id, className, storageKey) {
+        const button = document.getElementById(id);
+        button.setAttribute('aria-pressed', String(themeClasses.contains(className)));
+        button.addEventListener('click', () => {
+          const enabled = themeClasses.toggle(className);
+          button.setAttribute('aria-pressed', String(enabled));
+          try {
+            localStorage.setItem(storageKey, String(enabled));
+          } catch {
+            // Keep the selection for this page when storage is unavailable.
+          }
+        });
+      }
+      bindDisplayToggle('highContrastToggle', 'high-contrast', 'whack.highContrast');
+      bindDisplayToggle('magnificationToggle', 'magnification', 'whack.magnification');
       const readAloudToggle = document.getElementById('readAloudToggle');
       const readTabBtn = document.getElementById('readTabBtn');
       const speechOutput = window.speechSynthesis;
@@ -974,10 +1035,35 @@
         ...tabCommands.map(([tab, phrase]) => [phrase, () => openAccountTab(tab)]),
       ]);
 
+      const quickCommands = [
+        [/^(?:(?:show(?: me)?|tell me|check|view|whats|what is) )?(?:(?:my|the) )?(?:available |current |checking |account )?balance$/, 'show balance'],
+        [/^(?:(?:show(?: me)?|view|list|check) )?(?:(?:my|the) )?(?:(?:recent|latest|last) )?(?:transactions?|transaction history)$/, 'show recent transactions'],
+        [/^(?:(?:show(?: me)?|view|open) )?(?:(?:my|the) )?account (?:details|summary|holder name)$/, 'show account details'],
+        [/^(?:(?:show(?: me)?|whats|what is) )?(?:my )?(?:name|user id)$/, 'show account details'],
+      ];
+      const tabKeywords = new Map([
+        ['checking', 'checking'], ['savings', 'savings'], ['credit card', 'credit-cards'],
+        ['credit cards', 'credit-cards'], ['loan', 'loans'], ['loans', 'loans'],
+        ['rewards', 'rewards'], ['rewards and deals', 'rewards'],
+      ]);
+
       function runLocalCommand(text) {
-        const command = localCommands.get(text.toLowerCase().trim().replace(/[.!?]+$/, ''));
-        command?.();
-        return Boolean(command);
+        const phrase = text.toLowerCase().replace(/['’]/g, '').replace(/&/g, ' and ')
+          .replace(/[^a-z0-9\s.!?,]/g, ' ').replace(/\s+/g, ' ').trim().replace(/[.!?,]+$/, '').trimEnd()
+          .replace(/^(?:(?:can|could|would) you )?(?:please )?/, '').replace(/,? please$/, '');
+        const match = quickCommands.find(([pattern]) => pattern.test(phrase));
+        const command = localCommands.get(match?.[1] ?? phrase);
+        if (command) {
+          command();
+          return true;
+        }
+
+        const tabName = phrase.replace(/^(?:open|show(?: me)?|view|go to|switch to|take me to) /, '')
+          .replace(/^(?:my|the) /, '').replace(/ (?:account|tab)$/, '');
+        const tab = tabKeywords.get(tabName);
+        if (!tab) return false;
+        openAccountTab(tab);
+        return true;
       }
 
       document.querySelector('a[href="#help"]').addEventListener('click', (event) => {
@@ -1004,7 +1090,7 @@
         btn.addEventListener('click', () => {
           transcriptInput.value = btn.textContent.trim();
           transcriptInput.dispatchEvent(new Event('input'));
-          transcriptInput.focus();
+          if (!runLocalCommand(transcriptInput.value)) transcriptInput.focus();
         });
       });
 
@@ -1065,8 +1151,8 @@
         voiceDictationBtn.disabled = true;
       }
 
-      // --- Send command (POST /api/generate) ---
-      async function generateCode() {
+      // --- Send command (POST /api/intent) ---
+      async function sendCommand() {
         const text = transcriptInput.value.trim();
         if (!text) {
           notify('Please enter a command or speak into the microphone.', 'error');
@@ -1080,37 +1166,25 @@
         }
         if (isBusy) return;
         if (runLocalCommand(text)) return;
-        intentPill.classList.add('hidden');
         isBusy = true;
-        generateBtn.disabled = true;
-        generateSpinner.classList.remove('hidden');
-        generateBtnText.textContent = 'Working…';
+        sendCommandBtn.disabled = true;
+        commandSpinner.classList.remove('hidden');
+        sendCommandLabel.textContent = 'Working…';
         drawerStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
         drawerStatusLabel.textContent = 'WORKING';
 
-        const t0 = performance.now();
-
         try {
-          const data = await post('/api/generate', { text });
+          const data = await post('/api/intent', { text });
           const tab = tabIntents.get(data.responseCode);
           const view = intentViews.get(data.responseCode);
-          if (tab && data.code === null) {
+          if (tab) {
             openAccountTab(tab);
-          } else if (view && data.code === null) {
+          } else if (view) {
             showAccount(view);
-          } else if (typeof data.code === 'string' && data.code.trim()) {
-            codeOutputArea.value = data.code;
-            const elapsed = Math.round(performance.now() - t0);
-            notify(data.message || `Generated JavaScript (${elapsed} ms).`, 'success');
-            speak('Generated JavaScript is ready.');
           } else {
-            throw new Error(data.message || 'No action was recognized. Try rephrasing.');
+            throw new Error('No dashboard action was recognized. Try “show balance” or “open savings”.');
           }
 
-          if (data.responseCode) {
-            intentPill.textContent = data.responseCode;
-            intentPill.classList.remove('hidden');
-          }
           drawerStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
           drawerStatusLabel.textContent = 'READY';
         } catch (err) {
@@ -1119,89 +1193,13 @@
           notify(err.message, 'error');
         } finally {
           isBusy = false;
-          generateBtn.disabled = false;
-          generateSpinner.classList.add('hidden');
-          generateBtnText.textContent = 'Send command';
+          sendCommandBtn.disabled = false;
+          commandSpinner.classList.add('hidden');
+          sendCommandLabel.textContent = 'Send command';
         }
       }
 
-      generateBtn.addEventListener('click', generateCode);
-
-      // --- Execute Code (POST /api/execute) ---
-      async function executeCode() {
-        const code = codeOutputArea.value.trim();
-        if (!code) {
-          notify('Please generate code before executing.', 'error');
-          codeOutputArea.focus();
-          return;
-        }
-
-        if (isBusy) return;
-        isBusy = true;
-        executeBtn.disabled = true;
-        executeSpinner.classList.remove('hidden');
-        drawerStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
-        drawerStatusLabel.textContent = 'RUNNING';
-
-        const t0 = performance.now();
-
-        try {
-          const result = await post('/api/execute', { code });
-          const elapsed = Math.round(performance.now() - t0);
-          runtimeLabel.textContent = `Runtime: ${elapsed} ms`;
-
-          const stdout = result.stdout || '';
-          const stderr = result.stderr || '';
-          const exit = result.exitCode !== undefined ? result.exitCode : 0;
-
-          exitBadge.textContent = `exit: ${exit}`;
-          if (exit === 0) {
-            exitBadge.className = 'px-1.5 py-0.2 bg-emerald-800 text-emerald-200 rounded-xs font-bold';
-            terminalOutput.textContent = stdout || '(Execution returned no stdout)';
-            notify(`Executed successfully (exit 0) in ${elapsed} ms.`, 'success');
-          } else {
-            exitBadge.className = 'px-1.5 py-0.2 bg-red-800 text-red-200 rounded-xs font-bold';
-            terminalOutput.textContent = (stdout ? stdout + '\n' : '') + (stderr ? `[STDERR]:\n${stderr}` : '');
-            notify(`Completed with exit code ${exit}.`, 'error');
-          }
-
-          drawerStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
-          drawerStatusLabel.textContent = 'READY';
-        } catch (err) {
-          drawerStatusDot.className = 'w-2 h-2 rounded-full bg-red-500';
-          drawerStatusLabel.textContent = 'ERROR';
-          terminalOutput.textContent = `Execution failed:\n${err.message}`;
-          notify(err.message, 'error');
-        } finally {
-          isBusy = false;
-          executeBtn.disabled = false;
-          executeSpinner.classList.add('hidden');
-        }
-      }
-
-      executeBtn.addEventListener('click', executeCode);
-
-      // Copy script
-      copyScriptBtn.addEventListener('click', async () => {
-        if (!codeOutputArea.value) return;
-        try {
-          await navigator.clipboard.writeText(codeOutputArea.value);
-        } catch {
-          codeOutputArea.select();
-          notify('Clipboard access is unavailable. Copy the selected script manually.');
-          return;
-        }
-        copyScriptBtn.textContent = 'Copied!';
-        setTimeout(() => copyScriptBtn.textContent = 'Copy', 1500);
-      });
-
-      // Clear terminal
-      clearTerminalBtn.addEventListener('click', () => {
-        terminalOutput.textContent = 'Cleared.';
-        runtimeLabel.textContent = 'Runtime: -';
-        exitBadge.textContent = 'exit: -';
-        exitBadge.className = 'px-1.5 py-0.2 bg-slate-800 text-slate-300 rounded-xs';
-      });
+      sendCommandBtn.addEventListener('click', sendCommand);
 
     })();
   </script>

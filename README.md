@@ -2,14 +2,13 @@
 
 Accessibility interface for Capital One.
 
-The local backend turns a speech transcript into JavaScript for Node.js 22 using OpenRouter. The app can display the code and send it back in a separate request to run it and display the output.
+The dashboard uses voice and typed commands to navigate account tabs and show account details. The backend uses OpenRouter to interpret commands the dashboard doesn't recognize locally.
 
 ## Tech stack
 
 - **Node.js 22 and JavaScript ES modules** for the backend and generated scripts.
-- **Built-in Node.js APIs** for the HTTP server (`node:http`), OpenRouter requests (`fetch`), and launching the runner (`node:child_process`). No npm packages are required.
+- **Built-in Node.js APIs** for the HTTP server (`node:http`), and OpenRouter requests (`fetch`). No npm packages are required.
 - **OpenRouter Chat Completions API** for turning transcripts into JavaScript. Choose the model with `OPENROUTER_MODEL`.
-- **Docker** for optional code execution using the `node:22-bookworm-slim` image.
 - **SQLite** via Node.js `node:sqlite` for local demo accounts and transaction history.
 
 ## Start the backend
@@ -19,11 +18,17 @@ The local backend turns a speech transcript into JavaScript for Node.js 22 using
 3. Run `node --env-file=.env backend/server.mjs`. The backend listens at `http://127.0.0.1:3001` by default.
 4. Open `http://127.0.0.1:3001` in your browser to use the dashboard.
 
-Select the profile button and sign in with the demo credentials below. The balance and recent transactions load from SQLite. Type or say “show balance”, “show recent transactions”, “go home”, or “focus command” to navigate. Use **Send command** for other phrasing or JavaScript requests. The microphone depends on browser support, and the command field also accepts keyboard input.
+Select the profile button and sign in with the demo credentials below. The balance and recent transactions load from SQLite. Type or say “show balance”, “show recent transactions”, “go home”, or “focus command” to navigate. Use **Send command** for other ways of phrasing those requests. The microphone depends on browser support, and the command field also accepts keyboard input.
+
+Common phrases such as “what’s my balance?”, “list my recent transactions”, and “take me to savings” are matched locally without an OpenRouter call. Select a quick command, speak the phrase, or type it and select **Send command**.
 
 Use the sidebar, the Up and Down arrow keys on a focused tab, or commands like “open savings”, “open credit cards”, “open loans”, and “open rewards” to switch tabs. OpenRouter can also return a tab intent such as `RESPONSE_OPEN_SAVINGS`. Checking uses the demo account from SQLite. The other tabs display sample data.
 
 Turn on **Read aloud** in the voice console to hear tab summaries, account status, and balance or transaction-count commands. Select **Read this tab** or say “read this tab” to repeat the summary. Spoken feedback stops while the microphone is active.
+
+Select **High contrast** in the voice console to switch to white text on black with yellow highlights. The dashboard remembers your selection on this browser.
+
+Select **Magnify on hover** in the voice console to enlarge key controls and account figures when you point to them or focus them with the keyboard. The dashboard remembers this setting separately from high contrast.
 
 ## API
 
@@ -32,12 +37,9 @@ Send JSON with `Content-Type: application/json`. Keep the OpenRouter key in the 
 | Route | Request | Successful response |
 | --- | --- | --- |
 | `POST /api/generate` | `{"text":"Print the first five square numbers"}` | `{"language":"javascript","code":"for (let n = 1; n <= 5; n++) console.log(n ** 2)","responseCode":"RESPONSE_GENERATE_CODE","message":"Prints the first five square numbers."}` |
-| `POST /api/generate` | `{"text":"Show my balance"}` | `{"language":"javascript","code":null,"responseCode":"RESPONCE_SHOW_BALANCE","message":"Show the account balance."}` |
-| `POST /api/execute` | `{"code":"for (let n = 1; n <= 5; n++) console.log(n ** 2)"}` | `{"stdout":"1\n4\n9\n16\n25\n","stderr":"","exitCode":0,"status":"ok","truncated":false}` |
+| `POST /api/intent` | `{"text":"Take me to my savings"}` | `{"responseCode":"RESPONSE_OPEN_SAVINGS","message":"Open the Savings tab."}` |
 
-Recognized account requests return `200` with `code: null` and an intent `responseCode`. The frontend uses the code to open the matching tab or display details from `/api/account`. Unknown or missing intent codes fall back to `RESPONSE_UNKNOWN_INTENT`. HTTP errors include an `error` string, and generation failures also include a plain-language `message` for the app to display. The full list is in [intent-responses.json](backend/intent-responses.json).
-
-A script that exits with an error still returns an execution result with `status: "error"` and its stderr. A script killed by the time or memory limit can return `status: "killed"`. Each output stream is capped at 16 KiB.
+The dashboard uses `/api/intent` to open the matching tab or display details from `/api/account`. Its response contains `responseCode` and a short `message`. Unknown or missing intent codes fall back to `RESPONSE_UNKNOWN_INTENT`. HTTP errors include an `error` string. The action list is in [intent-responses.json](backend/intent-responses.json).
 
 ## Fetch a demo account
 
@@ -56,7 +58,3 @@ if (!response.ok) throw new Error(account.error);
 ```
 
 The response contains `userId`, `name`, `balanceMinor`, `currency`, and `transactions`. Each transaction has an `id`, `date`, `description`, and `amountMinor`. Amounts are integers in the smallest currency unit. For the demo account, `109350` means £1,093.50, and a negative transaction amount is money out. Incorrect credentials return `401`. The account response excludes password hashes and salts.
-
-## Enable local execution
-
-Start Docker, run `docker pull node:22-bookworm-slim`, set `ENABLE_CODE_EXECUTION=true` in `.env`, and restart the backend. The runner uses the default local Docker socket and runs one script at a time. Each script runs as an unprivileged user in a fresh container with networking disabled, a read-only filesystem, and a five-second runtime limit. Keep the runner on a trusted local development machine.
