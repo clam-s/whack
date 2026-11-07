@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Capital One Accessibility Code Engine | WHACK 2026</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#255f82',
+              50: '#f0f7fb',
+              100: '#e1eef6',
+              200: '#c3dded',
+              300: '#95c3de',
+              400: '#5fa3cb',
+              500: '#255f82',
+              600: '#1e4e6b',
+              700: '#1a4159',
+              800: '#18374a',
+              900: '#182f3e',
+              950: '#0f1e29',
+            },
+            corporate: '#0e1e28'
+          },
+          fontFamily: {
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', '"Liberation Mono"', '"Courier New"', 'monospace'],
+            sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    /* Sharp financial borders and scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .sharp-card {
+      border: 1px solid #e2e8f0;
+      background: #ffffff;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+    }
+    .terminal-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      tab-size: 2;
+    }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .animate-pulse-subtle {
+      animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes wave {
+      0% { transform: scaleY(0.4); }
+      50% { transform: scaleY(1); }
+      100% { transform: scaleY(0.4); }
+    }
+    .voice-bar {
+      display: inline-block;
+      width: 3px;
+      height: 14px;
+      background-color: #255f82;
+      border-radius: 1px;
+      animation: wave 1.2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans min-h-screen flex flex-col antialiased selection:bg-brand-100 selection:text-brand-900">
+
+  <!-- Top Enterprise Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-40">
+    <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <!-- Logo / Brand Shield -->
+        <div class="w-8 h-8 bg-brand flex items-center justify-center text-white font-bold tracking-tight text-sm shadow-sm">
+          C1
+        </div>
+        <div class="border-l border-slate-200 pl-3">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-bold tracking-widest text-slate-800 uppercase">Capital One</span>
+            <span class="bg-brand-50 text-brand text-[10px] font-semibold px-2 py-0.5 border border-brand-200">ACCESSIBILITY</span>
+            <span class="bg-slate-100 text-slate-600 text-[10px] font-mono px-1.5 py-0.5 border border-slate-200">WHACK 2026</span>
+          </div>
+          <h1 class="text-sm font-semibold text-slate-700 leading-tight">Speech-to-Code Execution Terminal</h1>
+        </div>
+      </div>
+
+      <!-- Center / Right Live Status Bar & Controls -->
+      <div class="flex items-center space-x-3 text-xs">
+        <!-- Backend Communication Status Indicator -->
+        <div id="liveStatusContainer" class="flex items-center space-x-2 px-3 py-1.5 bg-slate-50 border border-slate-200 transition-all duration-200">
+          <span id="statusPulseDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+          <span id="statusText" class="font-mono font-medium text-slate-700 uppercase tracking-wider text-[11px]">System Ready</span>
+          <span id="statusDetail" class="text-slate-400 font-mono text-[10px] hidden sm:inline-block">| Idle</span>
+        </div>
+
+        <!-- Layout Mode Toggle -->
+        <div class="hidden md:flex items-center border border-slate-200 bg-slate-50 p-0.5">
+          <button id="layoutSplitBtn" class="px-2.5 py-1 text-[11px] font-medium bg-white text-brand shadow-xs border border-slate-200" title="Side-by-side view">
+            <svg class="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4H5a1 1 0 00-1 1v14a1 1 0 001 1h4m6-16h4a1 1 0 011 1v14a1 1 0 01-1 1h-4m-6 0V4m6 16V4"/></svg>
+            Split
+          </button>
+          <button id="layoutStackBtn" class="px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:text-slate-900" title="Stacked view">
+            <svg class="w-3.5 h-3.5 inline mr-1 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            Stacked
+          </button>
+        </div>
+
+        <!-- Backend Target Selector Button -->
+        <div class="relative">
+          <button id="backendConfigBtn" class="flex items-center space-x-1.5 px-2.5 py-1.5 border border-slate-200 text-slate-700 bg-white hover:bg-slate-50 font-mono text-[11px]" title="Backend API Configuration">
+            <span class="w-2 h-2 rounded-full bg-brand"></span>
+            <span id="backendHostBadge">localhost:3001</span>
+            <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <!-- Config Dropdown Menu -->
+          <div id="backendConfigMenu" class="hidden absolute right-0 mt-1 w-72 bg-white border border-slate-200 shadow-lg p-3 z-50 text-xs">
+            <label class="block font-semibold text-slate-700 mb-1 uppercase tracking-wider text-[10px]">Backend Server URL</label>
+            <input type="text" id="backendUrlInput" value="http://localhost:3001" class="w-full px-2 py-1.5 border border-slate-300 font-mono text-xs focus:outline-none focus:border-brand" />
+            <div class="flex items-center space-x-2 mt-2">
+              <button id="setLocalhostBtn" class="flex-1 py-1 text-[10px] font-mono border border-slate-200 hover:bg-slate-50 text-slate-700">localhost:3001</button>
+              <button id="set127Btn" class="flex-1 py-1 text-[10px] font-mono border border-slate-200 hover:bg-slate-50 text-slate-700">127.0.0.1:3001</button>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-2 leading-relaxed">
+              If CORS errors occur, ensure <code class="bg-slate-100 px-1 font-mono">FRONTEND_ORIGIN</code> in your backend <code class="bg-slate-100 px-1 font-mono">.env</code> matches this origin.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Sub-header Alert Banner (for errors/warnings) -->
+  <div id="globalNotification" class="hidden border-b px-4 py-2 text-xs flex items-center justify-between transition-all">
+    <div class="flex items-center space-x-2 max-w-[1720px] mx-auto w-full">
+      <svg id="globalNotificationIcon" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"></svg>
+      <span id="globalNotificationText" class="font-medium"></span>
+    </div>
+    <button id="closeNotificationBtn" class="text-slate-400 hover:text-slate-700 text-sm font-bold px-2">&times;</button>
+  </div>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-[1720px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-5">
+    
+    <!-- 1. Input Section: Speech Transcript & Text Command Input -->
+    <section class="sharp-card">
+      <div class="border-b border-slate-200 bg-slate-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center space-x-2">
+          <span class="w-1.5 h-4 bg-brand inline-block"></span>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-800">Transcript & Prompt Command Input</h2>
+          <span class="text-[11px] text-slate-500 hidden sm:inline">(Speech or text instructions to be translated to Node.js 22 code)</span>
+        </div>
+        <div class="flex items-center space-x-3 text-xs font-mono">
+          <span id="inputCharCounter" class="text-slate-500">0 / 8,000 bytes</span>
+          <button id="clearInputBtn" class="text-slate-500 hover:text-slate-800 underline hover:no-underline text-[11px]">Clear</button>
+        </div>
+      </div>
+
+      <div class="p-4 sm:p-5 space-y-4">
+        <!-- Quick Sample Queries for Financial & Accessibility Workflows -->
+        <div class="flex items-center flex-wrap gap-1.5 text-xs">
+          <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-1">Sample Templates:</span>
+          <button class="sample-prompt-btn px-2.5 py-1 bg-slate-100 hover:bg-brand-50 hover:text-brand hover:border-brand-300 border border-slate-200 text-slate-700 text-xs transition">
+            Print the first five square numbers
+          </button>
+          <button class="sample-prompt-btn px-2.5 py-1 bg-slate-100 hover:bg-brand-50 hover:text-brand hover:border-brand-300 border border-slate-200 text-slate-700 text-xs transition">
+            Calculate monthly amortization for $15,000 at 5.5% over 36 months
+          </button>
+          <button class="sample-prompt-btn px-2.5 py-1 bg-slate-100 hover:bg-brand-50 hover:text-brand hover:border-brand-300 border border-slate-200 text-slate-700 text-xs transition">
+            Parse CSV lines of transactions and output total debit vs credit sum
+          </button>
+          <button class="sample-prompt-btn px-2.5 py-1 bg-slate-100 hover:bg-brand-50 hover:text-brand hover:border-brand-300 border border-slate-200 text-slate-700 text-xs transition">
+            Compute compound interest: Principal $20,000, 7% rate, compounded quarterly for 5 years
+          </button>
+        </div>
+
+        <!-- Textarea and Speech Mic Integration -->
+        <div class="relative">
+          <textarea
+            id="transcriptInput"
+            rows="4"
+            placeholder="Speak into microphone or enter a command... (e.g., 'Generate code to compute loan repayment schedules with principle and interest breakdown')"
+            class="w-full p-3.5 border border-slate-300 bg-white text-slate-900 font-sans text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand resize-y leading-relaxed placeholder:text-slate-400"
+          ></textarea>
+
+          <!-- Voice Dictation Floating Indicator / Bar -->
+          <div id="voiceListeningBanner" class="hidden absolute top-2 right-2 bg-white/95 border border-brand-300 shadow-sm px-3 py-1 flex items-center space-x-2 text-xs text-brand font-medium">
+            <div class="flex items-center space-x-1 h-3">
+              <span class="voice-bar" style="animation-delay: 0s;"></span>
+              <span class="voice-bar" style="animation-delay: 0.2s;"></span>
+              <span class="voice-bar" style="animation-delay: 0.4s;"></span>
+            </div>
+            <span>Listening to speech...</span>
+          </div>
+        </div>
+
+        <!-- Actions Toolbar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div class="flex items-center space-x-2">
+            <!-- Voice Input Button (Web Speech API) -->
+            <button
+              id="voiceToggleBtn"
+              type="button"
+              class="inline-flex items-center space-x-2 px-3.5 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs shadow-2xs transition active:scale-98"
+              title="Dictate with microphone (Accessibility speech input)"
+            >
+              <svg id="micIcon" class="w-4 h-4 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+              <span id="voiceBtnLabel">Voice Dictation</span>
+            </button>
+
+            <span class="text-slate-300">|</span>
+
+            <span class="text-xs text-slate-500">
+              Target: <span class="font-mono text-slate-700">POST /api/generate</span>
+            </span>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button
+              id="generateBtn"
+              type="button"
+              class="inline-flex items-center space-x-2 px-5 py-2 bg-brand hover:bg-brand-600 active:bg-brand-700 text-white font-medium text-xs tracking-wider uppercase shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg id="generateSpinner" class="hidden w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span id="generateBtnText">Generate JavaScript</span>
+              <kbd class="hidden sm:inline-block bg-brand-700/60 text-white/90 text-[10px] font-mono px-1.5 py-0.5 border border-brand-400/30">Ctrl+Enter</kbd>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Dual Output View: Generated JavaScript (Left) & Execution Output (Right) -->
+    <section id="outputPanelsContainer" class="grid grid-cols-1 lg:grid-cols-2 gap-5 transition-all">
+      
+      <!-- LEFT PANEL: Generated JavaScript -->
+      <div class="sharp-card flex flex-col min-h-[460px]">
+        <!-- Panel Header -->
+        <div class="border-b border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="w-1.5 h-4 bg-brand inline-block"></span>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800">Generated JavaScript</h3>
+            <span class="bg-slate-200 text-slate-700 font-mono text-[10px] px-1.5 py-0.5">ES Module</span>
+          </div>
+
+          <!-- Code Controls -->
+          <div class="flex items-center space-x-2 text-xs">
+            <span id="codeByteCounter" class="text-slate-400 font-mono text-[11px]">0 / 16,384 bytes</span>
+            <button
+              id="copyCodeBtn"
+              class="px-2.5 py-1 border border-slate-200 hover:bg-white text-slate-600 hover:text-slate-900 font-medium text-[11px] inline-flex items-center space-x-1"
+              title="Copy code to clipboard"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              <span id="copyCodeText">Copy</span>
+            </button>
+            <button
+              id="clearCodeBtn"
+              class="px-2 py-1 text-slate-400 hover:text-slate-700 text-[11px]"
+              title="Clear code"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Code Content Area (Editable textarea formatted like a data terminal) -->
+        <div class="relative flex-1 bg-slate-900 p-0 overflow-hidden flex flex-col font-mono text-xs">
+          <!-- Top code banner with node version info -->
+          <div class="bg-slate-950 px-4 py-1.5 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+            <div class="flex items-center space-x-2">
+              <span class="text-emerald-400">node:22</span>
+              <span>&bull;</span>
+              <span id="codeStatusNotice">Ready for inspection & editing</span>
+              <span id="sentimentBadge" class="hidden font-mono text-[10px] px-1.5 py-0.5 bg-brand-900 text-brand-200 border border-brand-700"></span>
+            </div>
+            <span class="text-slate-500 font-mono text-[10px]">Editable Script</span>
+          </div>
+
+          <textarea
+            id="codeOutputArea"
+            spellcheck="false"
+            class="flex-1 w-full bg-slate-900 text-slate-100 p-4 font-mono text-xs sm:text-[13px] leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-brand-400 border-none terminal-code placeholder:text-slate-600 min-h-[300px]"
+            placeholder="// Generated JavaScript will appear here after clicking 'Generate JavaScript'...&#10;// You can also type or paste custom JavaScript directly to run it."
+          ></textarea>
+        </div>
+
+        <!-- Panel Footer / Execution Trigger -->
+        <div class="border-t border-slate-200 bg-white p-3 sm:px-4 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center space-x-2 text-[11px] text-slate-500">
+            <span class="inline-flex items-center px-1.5 py-0.5 bg-slate-100 text-slate-600 font-mono text-[10px] border border-slate-200">
+              Docker sandbox: 5s timeout &bull; 128MB
+            </span>
+          </div>
+          <button
+            id="executeBtn"
+            type="button"
+            class="inline-flex items-center space-x-2 px-5 py-2 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-medium text-xs tracking-wider uppercase shadow-xs transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg id="executeSpinner" class="hidden w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span id="executeBtnText">Execute in Docker</span>
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- RIGHT PANEL: Execution Output (stdout / stderr) -->
+      <div class="sharp-card flex flex-col min-h-[460px]">
+        <!-- Panel Header -->
+        <div class="border-b border-slate-200 bg-slate-50 px-4 py-3 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="w-1.5 h-4 bg-emerald-600 inline-block"></span>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800">Execution Output</h3>
+            
+            <!-- Result Badges -->
+            <div id="executionStatusBadges" class="flex items-center space-x-1.5 ml-1">
+              <span id="execStatusPill" class="bg-slate-200 text-slate-600 font-mono text-[10px] font-semibold px-2 py-0.5 uppercase">UNRUN</span>
+              <span id="execExitCodePill" class="hidden bg-slate-200 text-slate-700 font-mono text-[10px] px-1.5 py-0.5">exit: -</span>
+              <span id="execTruncatedBadge" class="hidden bg-amber-100 text-amber-800 border border-amber-300 font-mono text-[10px] px-1.5 py-0.5">TRUNCATED</span>
+            </div>
+          </div>
+
+          <!-- Output View Tabs -->
+          <div class="flex items-center space-x-1 text-xs">
+            <div class="border border-slate-200 bg-white p-0.5 flex space-x-0.5">
+              <button id="viewStdoutTab" class="px-2.5 py-0.5 text-[11px] font-medium bg-slate-100 text-slate-800">STDOUT</button>
+              <button id="viewStderrTab" class="px-2.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-800">STDERR</button>
+              <button id="viewRawTab" class="px-2.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-800">RAW JSON</button>
+            </div>
+            <button
+              id="clearOutputBtn"
+              class="px-2 py-1 text-slate-400 hover:text-slate-700 text-[11px]"
+              title="Clear output"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Terminal Output Area -->
+        <div class="relative flex-1 bg-slate-950 p-0 overflow-hidden flex flex-col font-mono text-xs text-slate-200">
+          <!-- Terminal Sub-bar -->
+          <div class="bg-slate-900/90 px-4 py-1.5 border-b border-slate-800 flex items-center justify-between text-[11px]">
+            <div class="flex items-center space-x-2 text-slate-400">
+              <span class="inline-block w-2 h-2 rounded-full bg-slate-600" id="terminalStatusDot"></span>
+              <span id="outputStreamLabel">stdout stream</span>
+            </div>
+            <div class="flex items-center space-x-3 text-slate-500 text-[10px]">
+              <span id="executionTimeLabel">Runtime: - ms</span>
+              <span id="outputBytesLabel">0 bytes</span>
+            </div>
+          </div>
+
+          <!-- stdout view -->
+          <pre id="stdoutView" class="flex-1 p-4 overflow-auto terminal-code text-slate-100 text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap break-all min-h-[300px] select-text">No execution output yet. Click 'Execute in Docker' to run the script.</pre>
+
+          <!-- stderr view (hidden by default) -->
+          <pre id="stderrView" class="hidden flex-1 p-4 overflow-auto terminal-code text-rose-300 text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap break-all min-h-[300px] select-text">No stderr output.</pre>
+
+          <!-- raw json view (hidden by default) -->
+          <pre id="rawView" class="hidden flex-1 p-4 overflow-auto terminal-code text-sky-200 text-xs sm:text-[12px] leading-relaxed whitespace-pre-wrap break-all min-h-[300px] select-text">{}</pre>
+        </div>
+
+        <!-- Panel Footer -->
+        <div class="border-t border-slate-200 bg-white p-3 sm:px-4 flex items-center justify-between text-[11px] text-slate-500">
+          <div class="flex items-center space-x-2">
+            <span>Container: <code class="font-mono text-slate-700">node:22-bookworm-slim</code></span>
+            <span>&bull;</span>
+            <span class="text-slate-400 font-mono">isolated (--network=none)</span>
+          </div>
+          <button
+            id="copyOutputBtn"
+            class="px-2.5 py-1 border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 font-medium text-[11px] inline-flex items-center space-x-1"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            <span id="copyOutputText">Copy Output</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. System Architecture & Compliance Details (Data-Dense Financial Dashboard Footer) -->
+    <section class="sharp-card p-4 sm:p-5 bg-white text-xs">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-slate-600">
+        <div class="border-l-2 border-brand pl-3">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Endpoint 1</div>
+          <div class="font-mono font-semibold text-slate-800 text-xs mt-0.5">POST /api/generate</div>
+          <p class="text-[11px] text-slate-500 mt-1">Payload: <code class="font-mono bg-slate-100 px-1">{"text": "..."}</code> (max 8,000 bytes). Converts natural speech or text to Node.js 22 ES modules via OpenRouter.</p>
+        </div>
+
+        <div class="border-l-2 border-emerald-600 pl-3">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Endpoint 2</div>
+          <div class="font-mono font-semibold text-slate-800 text-xs mt-0.5">POST /api/execute</div>
+          <p class="text-[11px] text-slate-500 mt-1">Payload: <code class="font-mono bg-slate-100 px-1">{"code": "..."}</code> (max 16,384 bytes). Runs in an unprivileged container with network disabled.</p>
+        </div>
+
+        <div class="border-l-2 border-slate-400 pl-3">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Execution Sandbox</div>
+          <div class="font-mono font-semibold text-slate-800 text-xs mt-0.5">Docker Engine</div>
+          <p class="text-[11px] text-slate-500 mt-1">Resource quotas: 128MB RAM, 0.5 CPU, 32 PIDs, read-only FS, user 65534, 5-second hard timeout.</p>
+        </div>
+
+        <div class="border-l-2 border-brand-300 pl-3">
+          <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Accessibility Design</div>
+          <div class="font-mono font-semibold text-slate-800 text-xs mt-0.5">WCAG Compliant</div>
+          <p class="text-[11px] text-slate-500 mt-1">High-contrast slate & deep blue palette (#255f82), ARIA live notifications, speech recognition dictation, keyboard shortcuts.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Enterprise Footer -->
+  <footer class="bg-white border-t border-slate-200 mt-auto py-3 px-4 text-center text-xs text-slate-500">
+    <div class="max-w-[1720px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-brand"></span>
+        <span class="font-semibold text-slate-700">Capital One WHACK 2026 Accessibility Engine</span>
+      </div>
+      <div class="text-[11px] text-slate-400 font-mono">
+        Backend: <span id="footerBackendDisplay" class="text-slate-600">http://localhost:3001</span> &bull; Node.js 22
+      </div>
+    </div>
+  </footer>
+
+  <!-- Vanilla JavaScript Logic -->
+  <script>
+    (function () {
+      'use strict';
+
+      // --- State Management ---
+      let backendBaseUrl = 'http://localhost:3001';
+      let isCommunicating = false;
+      let activeTab = 'stdout';
+      let latestExecutionResult = null;
+      let speechRecognitionInstance = null;
+      let isListening = false;
+
+      // --- DOM Elements ---
+      const elements = {
+        // Status & Config
+        liveStatusContainer: document.getElementById('liveStatusContainer'),
+        statusPulseDot: document.getElementById('statusPulseDot'),
+        statusText: document.getElementById('statusText'),
+        statusDetail: document.getElementById('statusDetail'),
+        backendConfigBtn: document.getElementById('backendConfigBtn'),
+        backendConfigMenu: document.getElementById('backendConfigMenu'),
+        backendUrlInput: document.getElementById('backendUrlInput'),
+        backendHostBadge: document.getElementById('backendHostBadge'),
+        footerBackendDisplay: document.getElementById('footerBackendDisplay'),
+        setLocalhostBtn: document.getElementById('setLocalhostBtn'),
+        set127Btn: document.getElementById('set127Btn'),
+        globalNotification: document.getElementById('globalNotification'),
+        globalNotificationText: document.getElementById('globalNotificationText'),
+        globalNotificationIcon: document.getElementById('globalNotificationIcon'),
+        closeNotificationBtn: document.getElementById('closeNotificationBtn'),
+
+        // Layout
+        layoutSplitBtn: document.getElementById('layoutSplitBtn'),
+        layoutStackBtn: document.getElementById('layoutStackBtn'),
+        outputPanelsContainer: document.getElementById('outputPanelsContainer'),
+
+        // Inputs
+        transcriptInput: document.getElementById('transcriptInput'),
+        inputCharCounter: document.getElementById('inputCharCounter'),
+        clearInputBtn: document.getElementById('clearInputBtn'),
+        generateBtn: document.getElementById('generateBtn'),
+        generateBtnText: document.getElementById('generateBtnText'),
+        generateSpinner: document.getElementById('generateSpinner'),
+        voiceToggleBtn: document.getElementById('voiceToggleBtn'),
+        voiceBtnLabel: document.getElementById('voiceBtnLabel'),
+        voiceListeningBanner: document.getElementById('voiceListeningBanner'),
+
+        // Code Output (Left Panel)
+        codeOutputArea: document.getElementById('codeOutputArea'),
+        codeByteCounter: document.getElementById('codeByteCounter'),
+        codeStatusNotice: document.getElementById('codeStatusNotice'),
+        sentimentBadge: document.getElementById('sentimentBadge'),
+        copyCodeBtn: document.getElementById('copyCodeBtn'),
+        copyCodeText: document.getElementById('copyCodeText'),
+        clearCodeBtn: document.getElementById('clearCodeBtn'),
+        executeBtn: document.getElementById('executeBtn'),
+        executeBtnText: document.getElementById('executeBtnText'),
+        executeSpinner: document.getElementById('executeSpinner'),
+
+        // Execution Output (Right Panel)
+        execStatusPill: document.getElementById('execStatusPill'),
+        execExitCodePill: document.getElementById('execExitCodePill'),
+        execTruncatedBadge: document.getElementById('execTruncatedBadge'),
+        terminalStatusDot: document.getElementById('terminalStatusDot'),
+        outputStreamLabel: document.getElementById('outputStreamLabel'),
+        executionTimeLabel: document.getElementById('executionTimeLabel'),
+        outputBytesLabel: document.getElementById('outputBytesLabel'),
+        stdoutView: document.getElementById('stdoutView'),
+        stderrView: document.getElementById('stderrView'),
+        rawView: document.getElementById('rawView'),
+        viewStdoutTab: document.getElementById('viewStdoutTab'),
+        viewStderrTab: document.getElementById('viewStderrTab'),
+        viewRawTab: document.getElementById('viewRawTab'),
+        copyOutputBtn: document.getElementById('copyOutputBtn'),
+        copyOutputText: document.getElementById('copyOutputText'),
+        clearOutputBtn: document.getElementById('clearOutputBtn'),
+      };
+
+      // --- Byte Length Utility (UTF-8) ---
+      function getUtf8ByteLength(str) {
+        return new TextEncoder().encode(str).length;
+      }
+
+      // --- Notification System ---
+      function showNotification(message, type = 'info') {
+        const notif = elements.globalNotification;
+        const text = elements.globalNotificationText;
+        const icon = elements.globalNotificationIcon;
+
+        text.textContent = message;
+        notif.classList.remove('hidden', 'bg-red-50', 'text-red-800', 'border-red-200', 'bg-emerald-50', 'text-emerald-800', 'border-emerald-200', 'bg-blue-50', 'text-blue-800', 'border-blue-200', 'bg-amber-50', 'text-amber-800', 'border-amber-200');
+
+        if (type === 'error') {
+          notif.classList.add('bg-red-50', 'text-red-800', 'border-red-200');
+          icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />';
+        } else if (type === 'success') {
+          notif.classList.add('bg-emerald-50', 'text-emerald-800', 'border-emerald-200');
+          icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />';
+        } else if (type === 'warning') {
+          notif.classList.add('bg-amber-50', 'text-amber-800', 'border-amber-200');
+          icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />';
+        } else {
+          notif.classList.add('bg-blue-50', 'text-blue-800', 'border-blue-200');
+          icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />';
+        }
+      }
+
+      function hideNotification() {
+        elements.globalNotification.classList.add('hidden');
+      }
+
+      elements.closeNotificationBtn.addEventListener('click', hideNotification);
+
+      // --- Live Communication Status Updates ---
+      function setLiveStatus(state, message, detail = '') {
+        const dot = elements.statusPulseDot;
+        const text = elements.statusText;
+        const sub = elements.statusDetail;
+
+        text.textContent = message;
+        sub.textContent = detail ? `| ${detail}` : '';
+        dot.className = 'w-2.5 h-2.5 rounded-full';
+
+        switch (state) {
+          case 'generating':
+            dot.classList.add('bg-brand', 'animate-ping');
+            elements.liveStatusContainer.className = 'flex items-center space-x-2 px-3 py-1.5 bg-brand-50 border border-brand-300 transition-all';
+            break;
+          case 'executing':
+            dot.classList.add('bg-amber-500', 'animate-pulse');
+            elements.liveStatusContainer.className = 'flex items-center space-x-2 px-3 py-1.5 bg-amber-50 border border-amber-300 transition-all';
+            break;
+          case 'error':
+            dot.classList.add('bg-rose-600');
+            elements.liveStatusContainer.className = 'flex items-center space-x-2 px-3 py-1.5 bg-rose-50 border border-rose-300 transition-all';
+            break;
+          case 'success':
+            dot.classList.add('bg-emerald-500');
+            elements.liveStatusContainer.className = 'flex items-center space-x-2 px-3 py-1.5 bg-emerald-50 border border-emerald-300 transition-all';
+            break;
+          case 'ready':
+          default:
+            dot.classList.add('bg-emerald-500');
+            elements.liveStatusContainer.className = 'flex items-center space-x-2 px-3 py-1.5 bg-slate-50 border border-slate-200 transition-all';
+            break;
+        }
+      }
+
+      // --- Backend Config Dropdown & URL Sync ---
+      elements.backendConfigBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        elements.backendConfigMenu.classList.toggle('hidden');
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!elements.backendConfigMenu.contains(e.target) && !elements.backendConfigBtn.contains(e.target)) {
+          elements.backendConfigMenu.classList.add('hidden');
+        }
+      });
+
+      function updateBackendUrl(newUrl) {
+        backendBaseUrl = newUrl.replace(/\/+$/, '');
+        elements.backendUrlInput.value = backendBaseUrl;
+        try {
+          const u = new URL(backendBaseUrl);
+          elements.backendHostBadge.textContent = u.host;
+        } catch {
+          elements.backendHostBadge.textContent = backendBaseUrl;
+        }
+        elements.footerBackendDisplay.textContent = backendBaseUrl;
+      }
+
+      elements.backendUrlInput.addEventListener('change', () => {
+        updateBackendUrl(elements.backendUrlInput.value.trim());
+      });
+
+      elements.setLocalhostBtn.addEventListener('click', () => {
+        updateBackendUrl('http://localhost:3001');
+        elements.backendConfigMenu.classList.add('hidden');
+      });
+
+      elements.set127Btn.addEventListener('click', () => {
+        updateBackendUrl('http://127.0.0.1:3001');
+        elements.backendConfigMenu.classList.add('hidden');
+      });
+
+      // --- Layout Toggles (Split vs Stacked) ---
+      elements.layoutSplitBtn.addEventListener('click', () => {
+        elements.outputPanelsContainer.className = 'grid grid-cols-1 lg:grid-cols-2 gap-5 transition-all';
+        elements.layoutSplitBtn.className = 'px-2.5 py-1 text-[11px] font-medium bg-white text-brand shadow-xs border border-slate-200';
+        elements.layoutStackBtn.className = 'px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:text-slate-900';
+      });
+
+      elements.layoutStackBtn.addEventListener('click', () => {
+        elements.outputPanelsContainer.className = 'grid grid-cols-1 gap-5 transition-all';
+        elements.layoutStackBtn.className = 'px-2.5 py-1 text-[11px] font-medium bg-white text-brand shadow-xs border border-slate-200';
+        elements.layoutSplitBtn.className = 'px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:text-slate-900';
+      });
+
+      // --- Byte Counters & Input Monitoring ---
+      function updateInputCounters() {
+        const text = elements.transcriptInput.value;
+        const bytes = getUtf8ByteLength(text);
+        elements.inputCharCounter.textContent = `${bytes.toLocaleString()} / 8,000 bytes`;
+        if (bytes > 8000) {
+          elements.inputCharCounter.className = 'text-rose-600 font-semibold';
+        } else {
+          elements.inputCharCounter.className = 'text-slate-500';
+        }
+      }
+
+      function updateCodeCounters() {
+        const code = elements.codeOutputArea.value;
+        const bytes = getUtf8ByteLength(code);
+        elements.codeByteCounter.textContent = `${bytes.toLocaleString()} / 16,384 bytes`;
+        if (bytes > 16384) {
+          elements.codeByteCounter.className = 'text-rose-600 font-semibold font-mono text-[11px]';
+        } else {
+          elements.codeByteCounter.className = 'text-slate-400 font-mono text-[11px]';
+        }
+      }
+
+      elements.transcriptInput.addEventListener('input', updateInputCounters);
+      elements.codeOutputArea.addEventListener('input', updateCodeCounters);
+
+      elements.clearInputBtn.addEventListener('click', () => {
+        elements.transcriptInput.value = '';
+        updateInputCounters();
+        elements.transcriptInput.focus();
+      });
+
+      elements.clearCodeBtn.addEventListener('click', () => {
+        elements.codeOutputArea.value = '';
+        updateCodeCounters();
+      });
+
+      // --- Sample Prompts Click ---
+      document.querySelectorAll('.sample-prompt-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          elements.transcriptInput.value = btn.textContent.trim();
+          updateInputCounters();
+          elements.transcriptInput.focus();
+        });
+      });
+
+      // --- Web Speech API Speech-to-Text ---
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        speechRecognitionInstance = new SpeechRecognition();
+        speechRecognitionInstance.continuous = true;
+        speechRecognitionInstance.interimResults = true;
+        speechRecognitionInstance.lang = 'en-US';
+
+        let finalTranscriptSoFar = '';
+
+        speechRecognitionInstance.onstart = () => {
+          isListening = true;
+          finalTranscriptSoFar = elements.transcriptInput.value;
+          elements.voiceBtnLabel.textContent = 'Stop Dictation';
+          elements.voiceToggleBtn.classList.add('bg-rose-50', 'text-rose-700', 'border-rose-300');
+          elements.voiceListeningBanner.classList.remove('hidden');
+          setLiveStatus('generating', 'Listening to Voice Input...', 'Speech-to-Text');
+        };
+
+        speechRecognitionInstance.onresult = (event) => {
+          let interimTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscriptSoFar += (finalTranscriptSoFar && !finalTranscriptSoFar.endsWith(' ') ? ' ' : '') + transcript;
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+          elements.transcriptInput.value = finalTranscriptSoFar + (interimTranscript ? ' ' + interimTranscript : '');
+          updateInputCounters();
+        };
+
+        speechRecognitionInstance.onerror = (event) => {
+          console.warn('Speech recognition error:', event.error);
+          showNotification(`Microphone input warning: ${event.error}`, 'warning');
+          stopListening();
+        };
+
+        speechRecognitionInstance.onend = () => {
+          stopListening();
+        };
+
+        function stopListening() {
+          isListening = false;
+          elements.voiceBtnLabel.textContent = 'Voice Dictation';
+          elements.voiceToggleBtn.classList.remove('bg-rose-50', 'text-rose-700', 'border-rose-300');
+          elements.voiceListeningBanner.classList.add('hidden');
+          setLiveStatus('ready', 'System Ready', 'Idle');
+        }
+
+        elements.voiceToggleBtn.addEventListener('click', () => {
+          if (isListening) {
+            speechRecognitionInstance.stop();
+          } else {
+            hideNotification();
+            try {
+              speechRecognitionInstance.start();
+            } catch (err) {
+              console.error('Could not start speech recognition:', err);
+            }
+          }
+        });
+      } else {
+        elements.voiceToggleBtn.title = 'Speech Recognition API not supported in this browser. Please type commands directly.';
+        elements.voiceToggleBtn.classList.add('opacity-60');
+        elements.voiceToggleBtn.addEventListener('click', () => {
+          showNotification('Web Speech API is not supported in this browser engine. You can type commands directly.', 'warning');
+        });
+      }
+
+      // --- Clipboard Utilities ---
+      elements.copyCodeBtn.addEventListener('click', async () => {
+        const code = elements.codeOutputArea.value;
+        if (!code) return;
+        try {
+          await navigator.clipboard.writeText(code);
+          elements.copyCodeText.textContent = 'Copied!';
+          setTimeout(() => { elements.copyCodeText.textContent = 'Copy'; }, 1800);
+        } catch {
+          elements.codeOutputArea.select();
+          document.execCommand('copy');
+          elements.copyCodeText.textContent = 'Copied!';
+          setTimeout(() => { elements.copyCodeText.textContent = 'Copy'; }, 1800);
+        }
+      });
+
+      elements.copyOutputBtn.addEventListener('click', async () => {
+        let content = '';
+        if (activeTab === 'stdout') content = elements.stdoutView.textContent;
+        else if (activeTab === 'stderr') content = elements.stderrView.textContent;
+        else content = elements.rawView.textContent;
+
+        if (!content) return;
+        try {
+          await navigator.clipboard.writeText(content);
+          elements.copyOutputText.textContent = 'Copied!';
+          setTimeout(() => { elements.copyOutputText.textContent = 'Copy Output'; }, 1800);
+        } catch {
+          showNotification('Copied output to clipboard', 'info');
+        }
+      });
+
+      // --- Clear Output ---
+      elements.clearOutputBtn.addEventListener('click', () => {
+        elements.stdoutView.textContent = 'No execution output.';
+        elements.stderrView.textContent = 'No stderr output.';
+        elements.rawView.textContent = '{}';
+        elements.execStatusPill.textContent = 'UNRUN';
+        elements.execStatusPill.className = 'bg-slate-200 text-slate-600 font-mono text-[10px] font-semibold px-2 py-0.5 uppercase';
+        elements.execExitCodePill.classList.add('hidden');
+        elements.execTruncatedBadge.classList.add('hidden');
+        elements.outputBytesLabel.textContent = '0 bytes';
+        elements.executionTimeLabel.textContent = 'Runtime: - ms';
+      });
+
+      // --- Output Tab Switching ---
+      function switchTab(tab) {
+        activeTab = tab;
+        const tabs = [
+          { name: 'stdout', btn: elements.viewStdoutTab, view: elements.stdoutView, label: 'stdout stream' },
+          { name: 'stderr', btn: elements.viewStderrTab, view: elements.stderrView, label: 'stderr stream' },
+          { name: 'raw', btn: elements.viewRawTab, view: elements.rawView, label: 'raw json response' },
+        ];
+
+        tabs.forEach((t) => {
+          if (t.name === tab) {
+            t.btn.className = 'px-2.5 py-0.5 text-[11px] font-medium bg-slate-100 text-slate-800 shadow-2xs';
+            t.view.classList.remove('hidden');
+            elements.outputStreamLabel.textContent = t.label;
+          } else {
+            t.btn.className = 'px-2.5 py-0.5 text-[11px] font-medium text-slate-500 hover:text-slate-800';
+            t.view.classList.add('hidden');
+          }
+        });
+      }
+
+      elements.viewStdoutTab.addEventListener('click', () => switchTab('stdout'));
+      elements.viewStderrTab.addEventListener('click', () => switchTab('stderr'));
+      elements.viewRawTab.addEventListener('click', () => switchTab('raw'));
+
+      // --- API Communication: POST /api/generate ---
+      async function handleGenerate() {
+        const text = elements.transcriptInput.value.trim();
+        if (!text) {
+          showNotification('Please enter a speech transcript or text command to generate code.', 'warning');
+          elements.transcriptInput.focus();
+          return;
+        }
+
+        const byteLength = getUtf8ByteLength(text);
+        if (byteLength > 8000) {
+          showNotification(`Transcript too large (${byteLength.toLocaleString()} bytes). Server limit is 8,000 bytes.`, 'error');
+          return;
+        }
+
+        if (isCommunicating) return;
+
+        hideNotification();
+        isCommunicating = true;
+        elements.generateBtn.disabled = true;
+        elements.generateSpinner.classList.remove('hidden');
+        elements.generateBtnText.textContent = 'Generating...';
+        setLiveStatus('generating', 'Generating JavaScript...', 'POST /api/generate');
+
+        const startTime = performance.now();
+
+        try {
+          const targetUrl = `${backendBaseUrl}/api/generate`;
+          const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text }),
+          });
+
+          const elapsedMs = Math.round(performance.now() - startTime);
+
+          if (!response.ok) {
+            let errorMsg = `HTTP ${response.status} ${response.statusText}`;
+            try {
+              const errJson = await response.json();
+              if (errJson) {
+                if (errJson.message && errJson.error) {
+                  errorMsg = `${errJson.error}: ${errJson.message}`;
+                } else if (errJson.error) {
+                  errorMsg = errJson.error;
+                } else if (errJson.message) {
+                  errorMsg = errJson.message;
+                }
+              }
+            } catch {
+              // Non-JSON error body
+            }
+            throw new Error(errorMsg);
+          }
+
+          const data = await response.json();
+
+          if (data && typeof data.code === 'string') {
+            elements.codeOutputArea.value = data.code;
+            updateCodeCounters();
+            elements.codeStatusNotice.textContent = `Generated via OpenRouter (${elapsedMs} ms)`;
+            if (data.responseCode) {
+              elements.sentimentBadge.textContent = data.responseCode;
+              elements.sentimentBadge.classList.remove('hidden');
+            }
+            setLiveStatus('success', 'Code Generation Complete', `${elapsedMs} ms`);
+            const msgInfo = data.message ? `: "${data.message}"` : ` in ${elapsedMs} ms.`;
+            showNotification(`Successfully generated JavaScript${msgInfo}`, 'success');
+          } else {
+            throw new Error('Unexpected payload format: expected {"language":"javascript","code":"..."}');
+          }
+        } catch (err) {
+          console.error('Code generation error:', err);
+          let friendlyMsg = err.message;
+          if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
+            friendlyMsg = `Could not connect to backend at ${backendBaseUrl}. Ensure "node --env-file=.env backend/server.mjs" is running and FRONTEND_ORIGIN allows this origin.`;
+          }
+          setLiveStatus('error', 'Generation Failed', friendlyMsg);
+          showNotification(friendlyMsg, 'error');
+        } finally {
+          isCommunicating = false;
+          elements.generateBtn.disabled = false;
+          elements.generateSpinner.classList.add('hidden');
+          elements.generateBtnText.textContent = 'Generate JavaScript';
+        }
+      }
+
+      // --- API Communication: POST /api/execute ---
+      async function handleExecute() {
+        const code = elements.codeOutputArea.value.trim();
+        if (!code) {
+          showNotification('No JavaScript code to execute. Generate code first or write code in the editor.', 'warning');
+          elements.codeOutputArea.focus();
+          return;
+        }
+
+        const byteLength = getUtf8ByteLength(code);
+        if (byteLength > 16384) {
+          showNotification(`Script too large (${byteLength.toLocaleString()} bytes). Execution limit is 16,384 bytes.`, 'error');
+          return;
+        }
+
+        if (isCommunicating) return;
+
+        hideNotification();
+        isCommunicating = true;
+        elements.executeBtn.disabled = true;
+        elements.executeSpinner.classList.remove('hidden');
+        elements.executeBtnText.textContent = 'Executing...';
+        setLiveStatus('executing', 'Running in Docker Container...', 'POST /api/execute');
+
+        const startTime = performance.now();
+
+        try {
+          const targetUrl = `${backendBaseUrl}/api/execute`;
+          const response = await fetch(targetUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ code }),
+          });
+
+          const elapsedMs = Math.round(performance.now() - startTime);
+          elements.executionTimeLabel.textContent = `Runtime: ${elapsedMs} ms`;
+
+          if (!response.ok) {
+            let errorMsg = `HTTP ${response.status} ${response.statusText}`;
+            try {
+              const errJson = await response.json();
+              if (errJson && errJson.error) {
+                errorMsg = errJson.error;
+              }
+            } catch {
+              // Non-JSON error body
+            }
+            throw new Error(errorMsg);
+          }
+
+          const result = await response.json();
+          latestExecutionResult = result;
+
+          // Update Result Panels
+          renderExecutionResult(result);
+          setLiveStatus('success', 'Execution Finished', `Exit ${result.exitCode ?? 0} &bull; ${elapsedMs} ms`);
+
+          if (result.status === 'ok') {
+            showNotification(`Script executed successfully (exit 0) in ${elapsedMs} ms.`, 'success');
+          } else if (result.status === 'killed') {
+            showNotification(`Execution killed: script exceeded 5s runtime or 128MB memory limit.`, 'warning');
+          } else {
+            showNotification(`Script completed with exit code ${result.exitCode}. Check stderr output.`, 'warning');
+          }
+        } catch (err) {
+          console.error('Execution error:', err);
+          let friendlyMsg = err.message;
+          if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
+            friendlyMsg = `Could not connect to backend at ${backendBaseUrl}. Is the server listening?`;
+          }
+          setLiveStatus('error', 'Execution Failed', friendlyMsg);
+          showNotification(friendlyMsg, 'error');
+
+          elements.execStatusPill.textContent = 'ERROR';
+          elements.execStatusPill.className = 'bg-rose-100 text-rose-800 border border-rose-300 font-mono text-[10px] font-semibold px-2 py-0.5 uppercase';
+          elements.stderrView.textContent = `Execution Request Error:\n${friendlyMsg}`;
+          switchTab('stderr');
+        } finally {
+          isCommunicating = false;
+          elements.executeBtn.disabled = false;
+          elements.executeSpinner.classList.add('hidden');
+          elements.executeBtnText.textContent = 'Execute in Docker';
+        }
+      }
+
+      function renderExecutionResult(result) {
+        // Result payload: { stdout: string, stderr: string, exitCode: number, status: 'ok'|'killed'|'error', truncated: boolean }
+        const stdout = result.stdout || '';
+        const stderr = result.stderr || '';
+        const exitCode = result.exitCode !== undefined ? result.exitCode : 0;
+        const status = result.status || (exitCode === 0 ? 'ok' : 'error');
+        const truncated = !!result.truncated;
+
+        elements.stdoutView.textContent = stdout.length ? stdout : '(Process returned empty stdout)';
+        elements.stderrView.textContent = stderr.length ? stderr : '(Process returned empty stderr)';
+        elements.rawView.textContent = JSON.stringify(result, null, 2);
+
+        // Bytes
+        const totalBytes = getUtf8ByteLength(stdout) + getUtf8ByteLength(stderr);
+        elements.outputBytesLabel.textContent = `${totalBytes.toLocaleString()} bytes`;
+
+        // Status Badge Styling
+        elements.execStatusPill.textContent = status.toUpperCase();
+        if (status === 'ok') {
+          elements.execStatusPill.className = 'bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono text-[10px] font-semibold px-2 py-0.5 uppercase';
+          elements.terminalStatusDot.className = 'inline-block w-2 h-2 rounded-full bg-emerald-500';
+          switchTab('stdout');
+        } else if (status === 'killed') {
+          elements.execStatusPill.className = 'bg-amber-100 text-amber-800 border border-amber-300 font-mono text-[10px] font-semibold px-2 py-0.5 uppercase';
+          elements.terminalStatusDot.className = 'inline-block w-2 h-2 rounded-full bg-amber-500';
+          switchTab(stderr ? 'stderr' : 'stdout');
+        } else {
+          elements.execStatusPill.className = 'bg-rose-100 text-rose-800 border border-rose-300 font-mono text-[10px] font-semibold px-2 py-0.5 uppercase';
+          elements.terminalStatusDot.className = 'inline-block w-2 h-2 rounded-full bg-rose-500';
+          switchTab(stderr ? 'stderr' : 'stdout');
+        }
+
+        // Exit Code Pill
+        elements.execExitCodePill.classList.remove('hidden');
+        elements.execExitCodePill.textContent = `exit: ${exitCode}`;
+        if (exitCode === 0) {
+          elements.execExitCodePill.className = 'bg-slate-200 text-slate-700 font-mono text-[10px] px-1.5 py-0.5';
+        } else {
+          elements.execExitCodePill.className = 'bg-rose-200 text-rose-800 font-mono text-[10px] px-1.5 py-0.5 font-bold';
+        }
+
+        // Truncated Badge
+        if (truncated) {
+          elements.execTruncatedBadge.classList.remove('hidden');
+        } else {
+          elements.execTruncatedBadge.classList.add('hidden');
+        }
+      }
+
+      // --- Event Listeners ---
+      elements.generateBtn.addEventListener('click', handleGenerate);
+      elements.executeBtn.addEventListener('click', handleExecute);
+
+      // Keyboard shortcuts: Ctrl+Enter or Cmd+Enter to generate from prompt textarea
+      elements.transcriptInput.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          handleGenerate();
+        }
+      });
+
+      // Keyboard shortcut in code area: Ctrl+Enter or Cmd+Enter to execute
+      elements.codeOutputArea.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+          e.preventDefault();
+          handleExecute();
+        }
+      });
+
+      // Initialize defaults
+      updateInputCounters();
+      updateCodeCounters();
+      setLiveStatus('ready', 'System Ready', 'Idle');
+    })();
+  </script>
+</body>
+</html>
