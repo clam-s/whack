@@ -21,6 +21,12 @@ The local backend turns a speech transcript into JavaScript for Node.js 22 using
 
 Open **Voice Assistant** to type or dictate commands. Common phrases like “show balance” and “open savings” run locally. **Send command** uses OpenRouter for other phrasing. The dashboard automatically signs in to the demo account and shows the SQLite balance and transactions separately from the example data. Use **Demo account** to sign out. Reloading signs in to the demo again. **Read aloud**, **Magnify on hover**, **Contrast**, and **Gaze Lens** are available on the dashboard.
 
+Select **Start microphone** and allow access in the browser. The assistant previews what it hears as you speak and puts the final transcript in the command field. For phrasing that doesn't match a local command, review the text before selecting **Send command**. If speech recognition is unavailable, use the same field to type. [Browser speech recognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition)
+
+In Firefox, select **Record command**, allow microphone access, and select **Stop and transcribe** after speaking. Clips stop automatically at 15 seconds. The backend sends the clip to OpenRouter for transcription using the existing API key and the `OPENROUTER_TRANSCRIPTION_MODEL` setting, which defaults to `openai/whisper-large-v3`. The transcript appears after the clip is processed. [OpenRouter transcription](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/)
+
+Set `DEBUG_STORE_VOICE_CLIPS=true` in `.env` and restart the backend to save uploaded WebM or Ogg clips in `backend/data/voice-clips/`. The terminal prints each saved filename. Clips are saved before transcription, so they are available even when the transcription request fails. The directory is ignored by Git, and clips remain on disk until deleted. Browser-native speech recognition does not upload a clip to this backend.
+
 ## API
 
 Send JSON with `Content-Type: application/json`. Keep the OpenRouter key in the backend's `.env` file.

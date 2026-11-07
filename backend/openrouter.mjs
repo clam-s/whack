@@ -27,6 +27,23 @@ export const navigationFallback = {
   message: 'Try one dashboard action, such as “open savings” or “show recent transactions”.',
 };
 
+export async function transcribeAudio(audio, format, { apiKey, model }) {
+  const response = await fetch('https://openrouter.ai/api/v1/audio/transcriptions', {
+    method: 'POST',
+    redirect: 'error',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, input_audio: { data: audio.toString('base64'), format } }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new Error(`OpenRouter transcription returned HTTP ${response.status}`);
+  }
+  const result = await response.json();
+  if (typeof result.text !== 'string') throw new Error('OpenRouter did not return a transcript');
+  return result.text.trim();
+}
+
 export function isAccountIntent(code) {
   return code !== unknownIntent && code !== generateIntent && intentCodes.includes(code);
 }

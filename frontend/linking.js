@@ -17,6 +17,7 @@
   let account;
   let accountRequest;
   let readAloud = false;
+  let voiceSession;
 
   function preference(key, value) {
     try {
@@ -231,6 +232,7 @@
 
   document.querySelectorAll('[data-quick-command]').forEach((button) => {
     button.addEventListener('click', () => {
+      if (voiceSession) return;
       command.value = button.dataset.quickCommand;
       runLocal(command.value);
     });
@@ -238,7 +240,7 @@
   byId('voiceCommandForm').addEventListener('submit', async (event) => {
     event.preventDefault();
     const text = command.value.trim();
-    if (!text || sendButton.disabled || runLocal(text)) return;
+    if (!text || voiceSession || sendButton.disabled || runLocal(text)) return;
     sendButton.disabled = true;
     window.setVoiceState('thinking');
     commandStatus.textContent = 'Finding the matching dashboard action…';
@@ -255,53 +257,213 @@
     }
   });
 
+  function applyTranscript(text) {
+    if (drawer.inert || accountDialog.open) return;
+    if (!text) {
+      commandStatus.textContent = 'No speech was recognized. Try again or type a command.';
+      return;
+    }
+    command.value = text;
+    if (!runLocal(text)) commandStatus.textContent = 'Transcript ready. Review it and select Send command.';
+  }
+
+  function enableRecorderFallback() {
+    const Recorder = window.MediaRecorder;
+    const media = window.navigator?.mediaDevices;
+    const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus'].find((type) => Recorder?.isTypeSupported(type));
+    if (!media?.getUserMedia || !mimeType || location.protocol === 'file:') return false;
+
+    const label = 'Record command';
+    microphone.textContent = label;
+    commandStatus.textContent = 'Recording uses OpenRouter to transcribe your audio when you stop.';
+
+    function releaseMicrophone(session) {
+      clearTimeout(session.timer);
+      session.stream?.getTracks().forEach((track) => track.stop());
+      session.stream = undefined;
+      document.body.classList.remove('voice-listening');
+    }
+
+    function finish(session) {
+      if (voiceSession !== session) return;
+      releaseMicrophone(session);
+      voiceSession = undefined;
+      microphone.disabled = false;
+      microphone.textContent = label;
+      sendButton.disabled = false;
+      window.setVoiceState('done');
+    }
+
+    function cancel() {
+      const session = voiceSession;
+      if (!session) return;
+      session.request.abort();
+      if (session.recorder?.state === 'recording') session.recorder.stop();
+      finish(session);
+      commandStatus.textContent = 'Recording cancelled.';
+    }
+
+    async function upload(session, chunks, type) {
+      if (voiceSession !== session || session.request.signal.aborted) return;
+      releaseMicrophone(session);
+      microphone.disabled = true;
+      microphone.textContent = 'Transcribing…';
+      window.setVoiceState('thinking');
+      commandStatus.textContent = 'Transcribing your recording…';
+      const audio = new Blob(chunks, { type });
+      try {
+        if (!audio.size) throw new Error('No audio was recorded. Try again or type a command.');
+        const response = await fetch('/api/transcribe', {
+          method: 'POST', body: audio, signal: session.request.signal,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Speech transcription failed.');
+        if (voiceSession !== session) return;
+        finish(session);
+        applyTranscript(data.text.trim());
+      } catch (error) {
+        if (voiceSession !== session) return;
+        finish(session);
+        commandStatus.textContent = error.message;
+      }
+    }
+
+    microphone.addEventListener('click', async () => {
+      if (voiceSession) {
+        if (voiceSession.recorder?.state === 'recording') {
+          microphone.disabled = true;
+          voiceSession.recorder.stop();
+        }
+        return;
+      }
+      if (sendButton.disabled) return;
+      const session = { request: new AbortController() };
+      voiceSession = session;
+      sendButton.disabled = true;
+      microphone.disabled = true;
+      commandStatus.textContent = 'Waiting for microphone permission…';
+      try {
+        const stream = await media.getUserMedia({ audio: true });
+        if (voiceSession !== session) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        session.stream = stream;
+        const recorder = new Recorder(stream, { mimeType, audioBitsPerSecond: 32_000 });
+        session.recorder = recorder;
+        const chunks = [];
+        recorder.ondataavailable = ({ data }) => { if (data.size) chunks.push(data); };
+        recorder.onstop = () => void upload(session, chunks, recorder.mimeType || mimeType);
+        recorder.onerror = () => {
+          if (voiceSession !== session) return;
+          finish(session);
+          commandStatus.textContent = 'Recording failed. Try again or type a command.';
+        };
+        window.speechSynthesis?.cancel();
+        recorder.start();
+        document.body.classList.add('voice-listening');
+        microphone.disabled = false;
+        microphone.textContent = 'Stop and transcribe';
+        commandStatus.textContent = 'Recording. Select Stop and transcribe when finished, or wait up to 15 seconds.';
+        window.setVoiceState('listening');
+        session.timer = setTimeout(() => {
+          if (recorder.state === 'recording') recorder.stop();
+        }, 15_000);
+      } catch (error) {
+        if (voiceSession !== session) return;
+        finish(session);
+        commandStatus.textContent = error.name === 'NotAllowedError'
+          ? 'Microphone permission was denied. Allow access or type a command.'
+          : 'Could not record from your microphone. Try again or type a command.';
+      }
+    });
+    byId('closeVoiceDrawer').addEventListener('click', cancel);
+    byId('voiceAssistantBtn').addEventListener('click', () => { if (drawer.inert) cancel(); });
+    window.addEventListener('pagehide', cancel);
+    return true;
+  }
+
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
+    if (enableRecorderFallback()) return;
     microphone.disabled = true;
     microphone.textContent = 'Microphone unavailable';
+    commandStatus.textContent = 'This browser does not support speech recognition. You can type a command.';
     return;
   }
+  const transcriptPreview = byId('voiceTranscriptPreview');
   const recognition = new SpeechRecognition();
   recognition.lang = document.documentElement.lang || 'en';
-  let listening = false;
-  let transcript = '';
-  recognition.onresult = (event) => {
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      if (event.results[i].isFinal) transcript += ' ' + event.results[i][0].transcript;
-    }
+  recognition.interimResults = true;
+  recognition.onstart = () => {
+    if (!voiceSession || voiceSession.stopping) return;
+    commandStatus.textContent = 'Listening. Say a dashboard command.';
+    window.setVoiceState('listening');
+  };
+  recognition.onresult = ({ results }) => {
+    if (!voiceSession || voiceSession.cancelled) return;
+    const phrases = Array.from(results, (result) => result[0].transcript.trim());
+    voiceSession.transcript = phrases.filter((_, index) => results[index].isFinal).join(' ').trim();
+    const preview = phrases.join(' ').trim();
+    transcriptPreview.textContent = preview ? `Heard so far: ${preview}` : '';
+    transcriptPreview.hidden = !preview;
+  };
+  const recognitionErrors = {
+    'not-allowed': 'Microphone permission was denied. Allow access in your browser or type a command.',
+    'service-not-allowed': 'Speech recognition is unavailable. You can type a command.',
+    'audio-capture': 'No microphone could be used. Check your microphone or type a command.',
+    'no-speech': 'No speech was detected. Try again or type a command.',
+    network: 'The speech recognition service could not connect. Try again or type a command.',
   };
   recognition.onerror = ({ error }) => {
-    if (error !== 'aborted') commandStatus.textContent = `Microphone error: ${error}. You can type a command.`;
+    if (!voiceSession || voiceSession.cancelled) return;
+    voiceSession.cancelled = true;
+    commandStatus.textContent = recognitionErrors[error] ?? 'Speech recognition stopped. Try again or type a command.';
   };
-  recognition.onend = () => {
-    listening = false;
+  function finishVoice() {
+    voiceSession = undefined;
     document.body.classList.remove('voice-listening');
+    transcriptPreview.hidden = true;
+    transcriptPreview.textContent = '';
     microphone.textContent = 'Start microphone';
+    microphone.disabled = false;
+    sendButton.disabled = false;
     window.setVoiceState('done');
-    if (transcript.trim() && !drawer.inert && !accountDialog.open) {
-      command.value = transcript.trim();
-      if (!runLocal(command.value)) commandStatus.textContent = 'Transcript ready. Select Send command to continue.';
-    }
+  }
+  recognition.onend = () => {
+    const session = voiceSession;
+    if (!session) return;
+    finishVoice();
+    if (!session.cancelled) applyTranscript(session.transcript);
   };
   microphone.addEventListener('click', () => {
-    if (listening) {
+    if (voiceSession) {
+      if (voiceSession.stopping) return;
+      voiceSession.stopping = true;
+      microphone.disabled = true;
+      commandStatus.textContent = 'Finishing the transcript…';
       recognition.stop();
       return;
     }
+    if (sendButton.disabled) return;
+    voiceSession = { transcript: '', cancelled: false, stopping: false };
+    sendButton.disabled = true;
+    document.body.classList.add('voice-listening');
+    microphone.textContent = 'Stop microphone';
+    commandStatus.textContent = 'Starting microphone…';
     try {
-      transcript = '';
       window.speechSynthesis?.cancel();
       recognition.start();
-      listening = true;
-      document.body.classList.add('voice-listening');
-      microphone.textContent = 'Stop microphone';
-      window.setVoiceState('listening');
     } catch {
+      finishVoice();
       commandStatus.textContent = 'Could not start the microphone. You can type a command.';
     }
   });
   function abortVoice() {
-    if (listening) recognition.abort();
+    if (!voiceSession || voiceSession.cancelled) return;
+    voiceSession.cancelled = true;
+    commandStatus.textContent = 'Dictation cancelled.';
+    recognition.abort();
   }
   byId('closeVoiceDrawer').addEventListener('click', abortVoice);
   byId('voiceAssistantBtn').addEventListener('click', () => { if (drawer.inert) abortVoice(); });
