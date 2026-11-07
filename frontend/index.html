@@ -115,6 +115,36 @@
       border-radius: 1px;
       animation: wave 1.2s ease-in-out infinite;
     }
+
+    /* HCI Target Expansion & Gaze Magnifier (Fitts' Law) */
+    .hci-lens-active button,
+    .hci-lens-active a,
+    .hci-lens-active .gaze-target,
+    .hci-lens-active [data-nav] {
+      transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, border-color 0.2s ease !important;
+    }
+    .hci-lens-active button:hover,
+    .hci-lens-active button:focus,
+    .hci-lens-active a:hover,
+    .hci-lens-active a:focus,
+    .hci-lens-active [data-nav]:hover,
+    .hci-lens-active [data-nav]:focus,
+    .hci-lens-active .gaze-target:hover,
+    .hci-lens-active .gaze-target:focus-within {
+      transform: scale(1.06) translateY(-2px) !important;
+      box-shadow: 0 12px 24px -2px rgba(0, 72, 121, 0.35), 0 0 0 3px #085a96 !important;
+      z-index: 25 !important;
+      position: relative !important;
+    }
+
+    /* Gaze Dwell Ring Animation */
+    @keyframes dwellProgress {
+      from { stroke-dashoffset: 100; }
+      to { stroke-dashoffset: 0; }
+    }
+    .dwell-active circle.dwell-bar {
+      animation: dwellProgress 1.4s linear forwards;
+    }
   </style>
 </head>
 <body class="bg-c1-bg text-c1-textPrimary font-sans min-h-screen flex flex-col antialiased selection:bg-c1-lightNavy selection:text-white">
@@ -156,6 +186,34 @@
             <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 010-12v12z" />
           </svg>
           <span class="hidden sm:inline">Contrast</span>
+        </button>
+
+        <!-- HCI Gaze Magnifier & Target Expansion Toggle (Apple Fisheye / Fitts' Law) -->
+        <button
+          id="hciLensToggle"
+          class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-100 text-c1-navy font-bold text-xs min-h-[44px] transition"
+          aria-pressed="false"
+          aria-label="Toggle HCI Gaze Magnification and Target Expansion"
+          title="Fitts' Law Target Expansion: Magnifies targets and brings up Apple-style hover lens for eye tracking"
+        >
+          <svg class="w-4 h-4 text-c1-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+          </svg>
+          <span>Gaze Lens</span>
+          <span id="hciLensBadge" class="bg-slate-200 text-[10px] font-mono px-1 py-0.5 rounded-xs text-slate-700">OFF</span>
+        </button>
+
+        <!-- Global Text-to-Speech Account Reader Button -->
+        <button
+          id="speakAccountBtn"
+          class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold text-xs min-h-[44px] transition"
+          aria-label="Speak account balance and summary aloud using speech synthesis"
+          title="Audio Accessibility: Read account balance and overview aloud"
+        >
+          <svg class="w-4 h-4 text-emerald-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+          </svg>
+          <span class="hidden sm:inline">Listen Aloud</span>
         </button>
 
         <!-- Voice Assistant Placeholder Button (Designed for Voice Layer - Step 3) -->
@@ -398,6 +456,34 @@
     </div>
   </div>
 
+  <!-- ================= APPLE-STYLE HOVER TEXT & GAZE MAGNIFIER HUD ================= -->
+  <aside
+    id="hciMagnifierHud"
+    class="hidden fixed bottom-6 right-6 z-40 bg-slate-950/95 text-white border-2 border-amber-400 p-4 rounded-xl shadow-2xl max-w-md w-full transition-all duration-150 backdrop-blur-md"
+    aria-live="polite"
+    aria-label="HCI Gaze Magnification Lens"
+  >
+    <div class="flex items-center justify-between border-b border-slate-700 pb-2 mb-2">
+      <div class="flex items-center space-x-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+        <span class="text-[10px] font-mono uppercase tracking-wider text-amber-300 font-bold">HCI Gaze Lens &bull; Fitts' Law</span>
+      </div>
+      <div class="flex items-center space-x-1.5">
+        <button id="speakMagnifiedBtn" class="text-[11px] font-bold px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded flex items-center space-x-1" title="Speak this text aloud">
+          <span>🔊 Speak</span>
+        </button>
+        <button id="closeHudBtn" class="text-slate-400 hover:text-white text-sm font-bold px-1" aria-label="Close Magnifier HUD">&times;</button>
+      </div>
+    </div>
+    <div id="hciMagnifiedTargetContent" class="text-lg sm:text-2xl font-black text-white tracking-tight leading-snug break-words">
+      Hover or glance at any element...
+    </div>
+    <div class="mt-2 text-[10px] text-slate-400 font-mono flex items-center justify-between">
+      <span id="hciTargetCategory">Type: UI Element</span>
+      <span>Target Expansion (W &times; 1.08)</span>
+    </div>
+  </aside>
+
   <!-- ================= FOOTER LANDMARK ================= -->
   <footer class="bg-c1-darkNavy text-slate-300 border-t border-white/10 mt-auto py-4 px-4 text-center text-xs" role="contentinfo">
     <div class="max-w-[1720px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
@@ -462,6 +548,107 @@
     // --- High Contrast Toggle ---
     highContrastToggle.addEventListener('click', () => {
       toggleHighContrast();
+    });
+
+    // --- HCI Gaze Lens & Fitts' Law Magnification ---
+    let hciLensActive = false;
+    const hciLensToggle = document.getElementById('hciLensToggle');
+    const hciLensBadge = document.getElementById('hciLensBadge');
+    const hciMagnifierHud = document.getElementById('hciMagnifierHud');
+    const hciMagnifiedTargetContent = document.getElementById('hciMagnifiedTargetContent');
+    const hciTargetCategory = document.getElementById('hciTargetCategory');
+    const speakMagnifiedBtn = document.getElementById('speakMagnifiedBtn');
+    const closeHudBtn = document.getElementById('closeHudBtn');
+    const speakAccountBtn = document.getElementById('speakAccountBtn');
+
+    function toggleHciLens(forceState) {
+      hciLensActive = typeof forceState === 'boolean' ? forceState : !hciLensActive;
+      document.body.classList.toggle('hci-lens-active', hciLensActive);
+      hciLensToggle.setAttribute('aria-pressed', String(hciLensActive));
+
+      if (hciLensActive) {
+        hciLensBadge.textContent = 'ACTIVE';
+        hciLensBadge.className = 'bg-amber-400 text-slate-950 font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-xs shadow-xs';
+        hciMagnifierHud.classList.remove('hidden');
+        liveAnnouncer.textContent = "HCI Gaze Lens activated. Elements will expand on glance and hover text magnification is active.";
+      } else {
+        hciLensBadge.textContent = 'OFF';
+        hciLensBadge.className = 'bg-slate-200 text-slate-700 font-mono text-[10px] px-1 py-0.5 rounded-xs';
+        hciMagnifierHud.classList.add('hidden');
+        liveAnnouncer.textContent = "HCI Gaze Lens deactivated.";
+      }
+    }
+
+    hciLensToggle.addEventListener('click', () => toggleHciLens());
+    closeHudBtn?.addEventListener('click', () => toggleHciLens(false));
+
+    // Speech Synthesis Helper
+    function speakText(text) {
+      if (!('speechSynthesis' in window) || !text) return;
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1.0;
+      utter.pitch = 1.0;
+      window.speechSynthesis.speak(utter);
+    }
+
+    // Speak Magnified Item
+    speakMagnifiedBtn?.addEventListener('click', () => {
+      const text = hciMagnifiedTargetContent.textContent.trim();
+      speakText(text);
+    });
+
+    // Speak Entire Account Summary
+    speakAccountBtn?.addEventListener('click', () => {
+      const st = getState();
+      const ch = st.accounts.checking;
+      const card = st.accounts.credit;
+      const loan = st.accounts.loans;
+      const msg = `Hello LP. Here is your Capital One account overview. Your available checking balance is $${ch.balance.toFixed(2)}. Your Venture X credit card balance is $${card.balance.toFixed(2)} with $${card.availableCredit.toFixed(2)} in available credit, and your card is currently ${card.locked ? 'locked' : 'active'}. You have an upcoming auto loan payment of $${loan.monthlyPayment.toFixed(2)} due soon.`;
+      speakText(msg);
+      liveAnnouncer.textContent = msg;
+    });
+
+    // Hover / Glance Tracker for Magnifier HUD
+    document.addEventListener('mouseover', (e) => {
+      if (!hciLensActive) return;
+
+      const target = e.target.closest('button, [data-nav], .card, h1, h2, a, [role="listitem"]');
+      if (!target || target.closest('#hciMagnifierHud') || target.closest('header')) return;
+
+      let displayText = '';
+      let category = 'UI Element';
+
+      if (target.dataset && target.dataset.nav) {
+        category = 'Navigation Tab';
+        displayText = target.textContent.trim();
+      } else if (target.tagName === 'H1' || target.tagName === 'H2') {
+        category = 'Header Title';
+        displayText = target.textContent.trim();
+      } else if (target.getAttribute('role') === 'listitem') {
+        category = 'Transaction Entry';
+        displayText = target.innerText.replace(/\n+/g, ' — ').trim();
+      } else {
+        category = target.tagName.toLowerCase();
+        displayText = target.innerText ? target.innerText.slice(0, 140).replace(/\n+/g, ' ').trim() : target.textContent.trim();
+      }
+
+      if (displayText) {
+        hciMagnifiedTargetContent.textContent = displayText;
+        hciTargetCategory.textContent = `Type: ${category}`;
+      }
+    });
+
+    // Also support Keyboard Focus tracking for Magnifier HUD
+    document.addEventListener('focusin', (e) => {
+      if (!hciLensActive) return;
+      const target = e.target;
+      if (!target || target.closest('#hciMagnifierHud')) return;
+      const text = target.innerText || target.getAttribute('aria-label') || target.value || target.textContent;
+      if (text) {
+        hciMagnifiedTargetContent.textContent = text.slice(0, 140).replace(/\n+/g, ' ').trim();
+        hciTargetCategory.textContent = `Focused: ${target.tagName.toLowerCase()}`;
+      }
     });
 
     // --- Voice Assistant Panel Toggle (Preview) ---
