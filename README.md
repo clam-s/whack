@@ -17,6 +17,13 @@ The local backend turns a speech transcript into JavaScript for Node.js 22 using
 1. Install Node.js 22.13 or newer.
 2. Run `cp .env.example .env` and fill in `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` with your key and model ID. If the browser frontend runs on a different origin, set `FRONTEND_ORIGIN` to match it exactly.
 3. Run `node --env-file=.env backend/server.mjs`. The backend listens at `http://127.0.0.1:3001` by default.
+4. Open `http://127.0.0.1:3001` in your browser to use the dashboard.
+
+Select the profile button and sign in with the demo credentials below. The balance and recent transactions load from SQLite. Type or say “show balance”, “show recent transactions”, “go home”, or “focus command” to navigate. Use **Send command** for other phrasing or JavaScript requests. The microphone depends on browser support, and the command field also accepts keyboard input.
+
+Use the sidebar, the Up and Down arrow keys on a focused tab, or commands like “open savings”, “open credit cards”, “open loans”, and “open rewards” to switch tabs. OpenRouter can also return a tab intent such as `RESPONSE_OPEN_SAVINGS`. Checking uses the demo account from SQLite. The other tabs display sample data.
+
+Turn on **Read aloud** in the voice console to hear tab summaries, account status, and balance or transaction-count commands. Select **Read this tab** or say “read this tab” to repeat the summary. Spoken feedback stops while the microphone is active.
 
 ## API
 
@@ -28,7 +35,7 @@ Send JSON with `Content-Type: application/json`. Keep the OpenRouter key in the 
 | `POST /api/generate` | `{"text":"Show my balance"}` | `{"language":"javascript","code":null,"responseCode":"RESPONCE_SHOW_BALANCE","message":"Show the account balance."}` |
 | `POST /api/execute` | `{"code":"for (let n = 1; n <= 5; n++) console.log(n ** 2)"}` | `{"stdout":"1\n4\n9\n16\n25\n","stderr":"","exitCode":0,"status":"ok","truncated":false}` |
 
-Recognized account requests return `200` with `code: null` and an intent `responseCode`. The frontend can use that code to choose what to display from `/api/account`. Unknown or missing intent codes fall back to `RESPONSE_UNKNOWN_INTENT`. HTTP errors include an `error` string, and generation failures also include a plain-language `message` for the app to display. The full list is in [intent-responses.json](backend/intent-responses.json).
+Recognized account requests return `200` with `code: null` and an intent `responseCode`. The frontend uses the code to open the matching tab or display details from `/api/account`. Unknown or missing intent codes fall back to `RESPONSE_UNKNOWN_INTENT`. HTTP errors include an `error` string, and generation failures also include a plain-language `message` for the app to display. The full list is in [intent-responses.json](backend/intent-responses.json).
 
 A script that exits with an error still returns an execution result with `status: "error"` and its stderr. A script killed by the time or memory limit can return `status: "killed"`. Each output stream is capped at 16 KiB.
 

@@ -34,6 +34,12 @@
     };
   </script>
   <style>
+    .hidden, [hidden] { display: none !important; }
+    [role="tab"][aria-selected="true"] {
+      background-color: #0d548a;
+      border-left-color: white;
+      color: white;
+    }
     /* WCAG Focus indicator */
     :focus-visible {
       outline: 2px solid #004879;
@@ -81,7 +87,7 @@
       
       <!-- Capital One Logo -->
       <div class="flex items-center space-x-3">
-        <a href="#" class="flex items-center focus:outline-none focus:ring-2 focus:ring-c1-navy rounded-xs" aria-label="Capital One Home">
+        <a href="#dashboard" class="flex items-center focus:outline-none focus:ring-2 focus:ring-c1-navy rounded-xs" aria-label="Capital One Home">
           <svg class="h-8 w-auto" viewBox="0 0 280 65" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Capital One Logo">
             <!-- Wordmark "Capital One" -->
             <text x="10" y="44" font-family="'Inter', sans-serif" font-weight="900" font-style="italic" font-size="34" fill="#004879" letter-spacing="-0.5">Capital</text>
@@ -100,7 +106,7 @@
           id="toggleAssistantBtn"
           class="inline-flex items-center space-x-2 px-3.5 py-2 bg-c1-navy hover:bg-c1-lightNavy text-white font-medium text-xs rounded-full shadow-sm transition active:scale-95 focus:ring-2 focus:ring-offset-2 focus:ring-c1-navy min-h-[40px]"
           aria-label="Toggle Voice & Code Assistant Console"
-          aria-expanded="false"
+          aria-expanded="false" aria-controls="voiceConsoleDrawer"
         >
           <span id="voiceNavPulseDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
           <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,9 +125,9 @@
         </a>
 
         <!-- User Profile Pill "LP" -->
-        <button class="flex items-center space-x-1 focus:ring-2 focus:ring-c1-navy p-0.5 rounded-full" aria-label="Account profile menu">
-          <div class="w-9 h-9 rounded-full bg-c1-navy text-white font-bold text-xs flex items-center justify-center border-2 border-slate-100">
-            LP
+        <button id="profileBtn" class="flex items-center space-x-1 focus:ring-2 focus:ring-c1-navy p-0.5 rounded-full" aria-label="Account sign-in and details">
+          <div id="profileInitials" class="w-9 h-9 rounded-full bg-c1-navy text-white font-bold text-xs flex items-center justify-center border-2 border-slate-100">
+            Demo
           </div>
           <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -157,19 +163,20 @@
           <div>
             <div class="flex items-center space-x-2">
               <h2 class="text-sm font-bold uppercase tracking-wider text-c1-navy">Accessibility Speech & Code Terminal</h2>
-              <span class="bg-emerald-100 text-emerald-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">WCAG 2.1 AA</span>
             </div>
-            <p class="text-xs text-slate-500">Dictate commands (Web Speech API) &rarr; OpenRouter Node.js 22 &rarr; Docker sandbox execution</p>
+            <p class="text-xs text-slate-500">Navigate by voice, look up your demo account, or generate JavaScript.</p>
           </div>
         </div>
 
         <div class="flex items-center space-x-2 text-xs">
+          <button id="readAloudToggle" type="button" aria-pressed="false" class="rounded border border-slate-300 px-3 py-2 aria-pressed:bg-c1-navy aria-pressed:text-white disabled:opacity-50">Read aloud</button>
+          <button id="readTabBtn" type="button" disabled class="rounded border border-slate-300 px-3 py-2 disabled:opacity-50">Read this tab</button>
           <!-- Backend Status -->
           <div class="flex items-center space-x-2 px-3 py-1 bg-slate-100 border border-slate-300 rounded-sm font-mono text-[11px]">
             <span id="drawerStatusDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
             <span id="drawerStatusLabel" class="text-slate-700 font-medium">READY</span>
             <span class="text-slate-400">|</span>
-            <span class="text-slate-500 font-sans">http://127.0.0.1:3001</span>
+            <span class="text-slate-500 font-sans">Local dashboard</span>
           </div>
 
           <button id="closeDrawerBtn" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-xs" aria-label="Collapse Voice Console">
@@ -183,6 +190,7 @@
         
         <!-- Speech & Prompt Input (Column) -->
         <div class="lg:col-span-5 space-y-3">
+          <p id="help" tabindex="-1" class="text-xs text-slate-600">Say “open savings”, “open credit cards”, “open loans”, or “open rewards” to switch tabs. “Show balance” and “show recent transactions” return to checking.</p>
           <div class="flex items-center justify-between text-xs">
             <label for="transcriptInput" class="font-semibold text-slate-700 uppercase tracking-wider text-[11px]">Speech Transcript / Command</label>
             <span id="charCountDisplay" class="font-mono text-slate-500 text-[11px]">0 / 8,000 bytes</span>
@@ -192,7 +200,7 @@
             <textarea
               id="transcriptInput"
               rows="3"
-              placeholder="Click 'Hold to talk' or type command (e.g. 'Calculate compound interest on $4,200 balance at 4.5% for 12 months')"
+              placeholder="Try “show balance”, “show recent transactions”, or “print the first five square numbers”."
               class="w-full p-3 border border-slate-300 rounded-sm text-xs sm:text-sm font-sans focus:ring-2 focus:ring-c1-navy focus:border-c1-navy"
             ></textarea>
             
@@ -207,9 +215,9 @@
           <!-- Quick Templates & Actions -->
           <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
             <span class="text-slate-500 font-semibold uppercase text-[10px]">Quick:</span>
-            <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Calculate total upcoming bills</button>
+            <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Show balance</button>
             <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Print the first five square numbers</button>
-            <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Filter grocery spending from transactions</button>
+            <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Show recent transactions</button>
           </div>
 
           <!-- Buttons -->
@@ -223,17 +231,17 @@
               <svg id="micIconSvg" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
               </svg>
-              <span id="voiceDictationLabel">Hold to talk (or Space)</span>
+              <span id="voiceDictationLabel">Start microphone</span>
             </button>
 
-            <!-- Generate Code Button -->
+            <!-- Send command Button -->
             <button
               id="generateBtn"
               type="button"
               class="flex-1 inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 active:bg-black text-white font-medium text-xs rounded-sm shadow-xs min-h-[44px] transition disabled:opacity-50"
             >
               <svg id="generateSpinner" class="hidden w-3.5 h-3.5 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-              <span id="generateBtnText">Generate Code</span>
+              <span id="generateBtnText">Send command</span>
             </button>
           </div>
         </div>
@@ -243,7 +251,7 @@
           <div class="bg-slate-950 px-3 py-1.5 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-300">
             <span class="font-mono text-emerald-400 font-semibold">Generated JS (ESM)</span>
             <div class="flex items-center space-x-2">
-              <span id="sentimentPill" class="hidden font-mono text-[9px] px-1.5 py-0.5 bg-c1-lightNavy text-white rounded-xs"></span>
+              <span id="intentPill" class="hidden font-mono text-[9px] px-1.5 py-0.5 bg-c1-lightNavy text-white rounded-xs"></span>
               <button id="copyScriptBtn" class="text-slate-400 hover:text-white underline text-[10px]">Copy</button>
             </div>
           </div>
@@ -285,7 +293,7 @@
   </aside>
 
   <!-- ================= MAIN CAPITAL ONE DASHBOARD CONTAINER ================= -->
-  <main class="flex-1 max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
+  <main id="dashboard" tabindex="-1" class="flex-1 max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
     
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
@@ -293,18 +301,18 @@
       <nav class="lg:col-span-3 xl:col-span-2 space-y-4" aria-label="Account Navigation">
         
         <!-- Account list items -->
-        <div class="space-y-1">
+        <div class="space-y-1" role="tablist" aria-label="Account tabs" aria-orientation="vertical">
           
           <!-- Checking... 0096 (Active Item) -->
-          <button class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md bg-[#0d548a] text-white font-medium text-sm border-l-4 border-white shadow-xs focus:ring-2 focus:ring-white min-h-[44px]">
+          <button id="tab-checking" type="button" role="tab" aria-controls="panel-checking" aria-selected="true" tabindex="0" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
             <svg class="w-5 h-5 text-slate-100 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
-            <span class="truncate">Checking... 0096</span>
+            <span class="truncate">Demo checking</span>
           </button>
 
           <!-- Savings... 3886 -->
-          <button class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]">
+          <button id="tab-savings" type="button" role="tab" aria-controls="panel-savings" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
             <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -312,7 +320,7 @@
           </button>
 
           <!-- Credit Cards... 9794 -->
-          <button class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]">
+          <button id="tab-credit-cards" type="button" role="tab" aria-controls="panel-credit-cards" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
             <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
@@ -320,7 +328,7 @@
           </button>
 
           <!-- Loans... 2284 -->
-          <button class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]">
+          <button id="tab-loans" type="button" role="tab" aria-controls="panel-loans" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
             <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
             </svg>
@@ -328,7 +336,7 @@
           </button>
 
           <!-- Rewards & Deals -->
-          <button class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]">
+          <button id="tab-rewards" type="button" role="tab" aria-controls="panel-rewards" aria-selected="false" tabindex="-1" class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] font-medium text-sm border-l-4 border-transparent focus:ring-2 focus:ring-white min-h-[44px]">
             <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
             </svg>
@@ -374,25 +382,26 @@
 
       </nav>
 
+      <div id="panel-checking" role="tabpanel" aria-labelledby="tab-checking" tabindex="0" class="lg:col-span-9 xl:col-span-10 grid grid-cols-1 lg:grid-cols-9 xl:grid-cols-10 gap-5">
       <!-- ================= CENTER COLUMN: My Balance & Recent Transactions ================= -->
       <section class="lg:col-span-5 xl:col-span-6 space-y-5" aria-label="Account Overview">
         
         <!-- CARD: My Balance -->
         <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
           <div class="flex items-center justify-between">
-            <h2 class="text-sm font-bold text-slate-800 tracking-tight">My Balance</h2>
-            <button class="text-slate-400 hover:text-slate-600 p-1 rounded-sm" aria-label="Balance options">
+            <h2 class="text-sm font-bold text-slate-800 tracking-tight" id="balance" tabindex="-1">My Balance</h2>
+            <button id="balanceOptions" class="text-slate-400 hover:text-slate-600 p-1 rounded-sm" aria-label="Account details">
               <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/></svg>
             </button>
           </div>
 
           <div>
-            <div class="text-3xl sm:text-4xl font-extrabold text-[#004879] tracking-tight">$4,200.10</div>
+            <div id="accountBalance" class="text-3xl sm:text-4xl font-extrabold text-[#004879] tracking-tight">—</div>
             <div class="text-xs text-slate-500 font-medium mt-0.5">Available Balance</div>
           </div>
 
           <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span class="text-slate-500 font-medium">Account Number &amp; Routing Number</span>
+            <span class="text-slate-500 font-medium">Demo account</span>
             <a href="#details" class="font-bold text-[#004879] hover:underline uppercase tracking-wider text-[11px]">
               Account Details &gt;
             </a>
@@ -402,133 +411,13 @@
         <!-- CARD: Recent Transactions -->
         <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
           <div class="flex items-center justify-between">
-            <h2 class="text-sm font-bold text-slate-800 tracking-tight">Recent Transactions</h2>
-            <span class="text-xs text-slate-400">Past 30 days</span>
+            <h2 class="text-sm font-bold text-slate-800 tracking-tight" id="transactions" tabindex="-1">Recent Transactions</h2>
+            <span class="text-xs text-slate-400">Demo history</span>
           </div>
 
-          <!-- Transaction List -->
-          <div class="divide-y divide-slate-100 text-xs">
-            
-            <!-- Item: Spotify -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-xs shadow-2xs">
-                  <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Spotify</div>
-                  <div class="text-slate-500 text-[11px]">Bills &amp; Utilities</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-18.98</div>
-                <div class="text-slate-400 text-[11px]">Nov 10, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: Chick-Fil-A -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-red-600 flex items-center justify-center text-white font-bold text-sm">
-                  C
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Chick-Fil-A</div>
-                  <div class="text-slate-500 text-[11px]">Food &amp; Drink</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-20.40</div>
-                <div class="text-slate-400 text-[11px]">Nov 8, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: Netflix -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-red-700 flex items-center justify-center text-white font-black text-sm">
-                  N
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Netflix</div>
-                  <div class="text-slate-500 text-[11px]">Bills &amp; Utilities</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-9.96</div>
-                <div class="text-slate-400 text-[11px]">Nov 6, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: Hulu -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-emerald-400 flex items-center justify-center text-slate-900 font-black text-sm">
-                  h
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Hulu</div>
-                  <div class="text-slate-500 text-[11px]">Bills &amp; Utilities</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-8.98</div>
-                <div class="text-slate-400 text-[11px]">Nov 4, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: Walmart -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-sky-500 flex items-center justify-center text-amber-300 font-bold text-sm">
-                  &#10038;
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Walmart</div>
-                  <div class="text-slate-500 text-[11px]">Groceries</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-40.24</div>
-                <div class="text-slate-400 text-[11px]">Nov 3, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: McDonald's -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-amber-400 flex items-center justify-center text-red-600 font-black text-base">
-                  M
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">McDonald's</div>
-                  <div class="text-slate-500 text-[11px]">Food &amp; Drink</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-10.40</div>
-                <div class="text-slate-400 text-[11px]">Oct 31, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: Exxon -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-red-600 flex items-center justify-center text-white font-black text-xs">
-                  XX
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Exxon</div>
-                  <div class="text-slate-500 text-[11px]">Transportation &amp; Fuel</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-40.00</div>
-                <div class="text-slate-400 text-[11px]">Oct 28, 2024</div>
-              </div>
-            </div>
-
-          </div>
+          <ul id="accountTransactions" class="divide-y divide-slate-100 text-xs">
+            <li class="py-3">Sign in to see your transactions.</li>
+          </ul>
 
           <div class="pt-2 text-right">
             <a href="#transactions" class="text-xs font-bold text-[#004879] hover:underline uppercase tracking-wider">
@@ -540,7 +429,8 @@
       </section>
 
       <!-- ================= RIGHT COLUMN: Upcoming Transactions, Banking Features, Spending ================= -->
-      <section class="lg:col-span-4 xl:col-span-4 space-y-5" aria-label="Financial Tools & Features">
+      <section class="lg:col-span-4 xl:col-span-4 space-y-5" aria-label="Example financial tools">
+        <p class="text-xs text-slate-600">Example widgets</p>
         
         <!-- CARD: Upcoming Transactions -->
         <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
@@ -711,18 +601,74 @@
 
       </section>
 
+      </div>
+
+      <section id="panel-savings" role="tabpanel" aria-labelledby="tab-savings" tabindex="0" hidden class="lg:col-span-9 xl:col-span-10 bg-white rounded-xl border border-slate-200 p-5 space-y-4 self-start">
+        <h2 class="text-xl font-bold text-slate-900">Savings</h2>
+        <p class="text-sm text-slate-600">Sample account ending in 3886</p>
+        <dl class="grid gap-3 sm:grid-cols-2">
+          <div><dt>Available balance</dt><dd class="text-xl font-bold text-c1-navy">£2,500.00</dd></div>
+          <div><dt>Last deposit</dt><dd class="font-semibold">£150.00</dd></div>
+        </dl>
+        <details><summary class="cursor-pointer font-semibold">Savings goal</summary><p>£2,500 saved toward a £4,000 emergency fund.</p></details>
+      </section>
+
+      <section id="panel-credit-cards" role="tabpanel" aria-labelledby="tab-credit-cards" tabindex="0" hidden class="lg:col-span-9 xl:col-span-10 bg-white rounded-xl border border-slate-200 p-5 space-y-4 self-start">
+        <h2 class="text-xl font-bold text-slate-900">Credit Cards</h2>
+        <p class="text-sm text-slate-600">Sample card ending in 9794</p>
+        <dl class="grid gap-3 sm:grid-cols-2">
+          <div><dt>Current balance</dt><dd class="text-xl font-bold text-c1-navy">£380.50</dd></div>
+          <div><dt>Available credit</dt><dd class="font-semibold">£1,619.50</dd></div>
+        </dl>
+        <details><summary class="cursor-pointer font-semibold">Payment details</summary><p>Example minimum payment: £25.00.</p></details>
+      </section>
+
+      <section id="panel-loans" role="tabpanel" aria-labelledby="tab-loans" tabindex="0" hidden class="lg:col-span-9 xl:col-span-10 bg-white rounded-xl border border-slate-200 p-5 space-y-4 self-start">
+        <h2 class="text-xl font-bold text-slate-900">Loans</h2>
+        <p class="text-sm text-slate-600">Sample personal loan ending in 2284</p>
+        <dl class="grid gap-3 sm:grid-cols-2">
+          <div><dt>Remaining balance</dt><dd class="text-xl font-bold text-c1-navy">£3,200.00</dd></div>
+          <div><dt>Monthly payment</dt><dd class="font-semibold">£160.00</dd></div>
+        </dl>
+      </section>
+
+      <section id="panel-rewards" role="tabpanel" aria-labelledby="tab-rewards" tabindex="0" hidden class="lg:col-span-9 xl:col-span-10 bg-white rounded-xl border border-slate-200 p-5 space-y-4 self-start">
+        <h2 class="text-xl font-bold text-slate-900">Rewards &amp; Deals</h2>
+        <p class="text-sm text-slate-600">Sample rewards activity</p>
+        <dl><dt>Points available</dt><dd class="text-xl font-bold text-c1-navy">1,250 points</dd></dl>
+        <details><summary class="cursor-pointer font-semibold">Example deal</summary><p>Earn double points on a qualifying grocery purchase.</p></details>
+      </section>
+
     </div>
 
   </main>
+
+  <dialog id="accountDialog" aria-labelledby="accountDialogTitle" class="m-auto w-[min(28rem,90vw)] rounded-xl border border-slate-300 p-5 backdrop:bg-slate-900/50">
+    <div class="flex justify-between items-center gap-3">
+      <h2 id="accountDialogTitle" class="font-bold text-lg">Demo account</h2>
+      <form method="dialog"><button class="p-2 underline">Close</button></form>
+    </div>
+    <form id="accountForm" class="space-y-3">
+      <p class="text-sm">Try <code>demo-user</code> with password <code>whack-demo-only</code>.</p>
+      <label class="block">User ID <input name="userId" autocomplete="username" required class="block w-full border rounded p-2"></label>
+      <label class="block">Password <input name="password" type="password" autocomplete="current-password" required class="block w-full border rounded p-2"></label>
+      <button class="rounded bg-c1-navy text-white px-4 py-2">Sign in</button>
+    </form>
+    <div id="accountDetails" class="hidden space-y-3">
+      <dl class="grid grid-cols-2 gap-2">
+        <dt>Name</dt><dd id="accountName"></dd>
+        <dt>User ID</dt><dd id="accountUserId"></dd>
+      </dl>
+      <button id="signOut" class="rounded bg-c1-navy text-white px-4 py-2">Sign out</button>
+    </div>
+    <p id="accountStatus" class="text-sm mt-3" role="status"></p>
+  </dialog>
 
   <!-- ================= ACCESSIBLE LOGIC SCRIPT ================= -->
   <script>
     (function () {
       'use strict';
 
-      const backendUrl = 'http://127.0.0.1:3001';
-      let isListening = false;
-      let recognition = null;
       let isBusy = false;
 
       // Elements
@@ -731,7 +677,6 @@
       const closeDrawerBtn = document.getElementById('closeDrawerBtn');
       const voiceDictationBtn = document.getElementById('voiceDictationBtn');
       const voiceDictationLabel = document.getElementById('voiceDictationLabel');
-      const micIconSvg = document.getElementById('micIconSvg');
       const listeningBadge = document.getElementById('listeningBadge');
       const transcriptInput = document.getElementById('transcriptInput');
       const charCountDisplay = document.getElementById('charCountDisplay');
@@ -739,7 +684,7 @@
       const generateBtnText = document.getElementById('generateBtnText');
       const generateSpinner = document.getElementById('generateSpinner');
       const codeOutputArea = document.getElementById('codeOutputArea');
-      const sentimentPill = document.getElementById('sentimentPill');
+      const intentPill = document.getElementById('intentPill');
       const copyScriptBtn = document.getElementById('copyScriptBtn');
       const executeBtn = document.getElementById('executeBtn');
       const executeSpinner = document.getElementById('executeSpinner');
@@ -754,12 +699,40 @@
       const drawerStatusDot = document.getElementById('drawerStatusDot');
       const drawerStatusLabel = document.getElementById('drawerStatusLabel');
       const voiceNavPulseDot = document.getElementById('voiceNavPulseDot');
+      const readAloudToggle = document.getElementById('readAloudToggle');
+      const readTabBtn = document.getElementById('readTabBtn');
+      const speechOutput = window.speechSynthesis;
+      let readAloud = false;
+      let micActive = false;
+
+      function speak(text) {
+        if (!readAloud || micActive) return;
+        speechOutput.cancel();
+        const utterance = new window.SpeechSynthesisUtterance(text);
+        utterance.lang = document.documentElement.lang || 'en';
+        speechOutput.speak(utterance);
+      }
+
+      if (!speechOutput || !window.SpeechSynthesisUtterance) {
+        readAloudToggle.disabled = true;
+        readAloudToggle.textContent = 'Read aloud unavailable';
+      } else {
+        readAloudToggle.addEventListener('click', () => {
+          readAloud = !readAloud;
+          readAloudToggle.setAttribute('aria-pressed', String(readAloud));
+          readTabBtn.disabled = !readAloud;
+          if (readAloud) speak('Read aloud is on.');
+          else speechOutput.cancel();
+        });
+        window.addEventListener('pagehide', () => speechOutput.cancel());
+      }
 
       // --- Drawer Open / Close Animation ---
       let drawerOpen = true; // start open so user can immediately see speech & code
       function updateDrawer() {
+        drawer.inert = !drawerOpen;
         if (drawerOpen) {
-          drawer.style.maxHeight = '800px';
+          drawer.style.maxHeight = 'none';
           toggleBtn.setAttribute('aria-expanded', 'true');
         } else {
           drawer.style.maxHeight = '0px';
@@ -777,6 +750,7 @@
       closeDrawerBtn.addEventListener('click', () => {
         drawerOpen = false;
         updateDrawer();
+        toggleBtn.focus();
       });
 
       // --- Notification banner ---
@@ -796,6 +770,222 @@
         }
       }
       closeNotifBtn.addEventListener('click', () => statusNotification.classList.add('hidden'));
+
+      const accountDialog = document.getElementById('accountDialog');
+      const accountForm = document.getElementById('accountForm');
+      const accountDetails = document.getElementById('accountDetails');
+      const accountStatus = document.getElementById('accountStatus');
+      const accountTransactions = document.getElementById('accountTransactions');
+      const profileBtn = document.getElementById('profileBtn');
+      let account = null;
+      let pendingAccountView = null;
+      let accountRequest = null;
+
+      const accountTabs = [...document.querySelectorAll('[role="tab"]')];
+      const tabCommands = [
+        ['checking', 'open checking', 'RESPONSE_OPEN_CHECKING'],
+        ['savings', 'open savings', 'RESPONSE_OPEN_SAVINGS'],
+        ['credit-cards', 'open credit cards', 'RESPONSE_OPEN_CREDIT_CARDS'],
+        ['loans', 'open loans', 'RESPONSE_OPEN_LOANS'],
+        ['rewards', 'open rewards', 'RESPONSE_OPEN_REWARDS'],
+      ];
+      const tabIntents = new Map(tabCommands.map(([tab, , code]) => [code, tab]));
+      let activeAccountTab = 'checking';
+
+      function readCurrentTab() {
+        if (!readAloud || micActive) return;
+        if (activeAccountTab === 'checking') {
+          const balance = document.getElementById('accountBalance').textContent;
+          speak(account ? `Checking. Available balance: ${balance}. ${account.transactions.length} recent transactions.`
+            : 'Checking. Sign in to hear your balance and recent transaction count.');
+          return;
+        }
+        const panel = document.getElementById('panel-' + activeAccountTab);
+        const title = panel.querySelector('h2').textContent;
+        const figures = Array.from(panel.querySelectorAll('dt'), (label) => `${label.textContent}: ${label.nextElementSibling.textContent}.`);
+        speak([title + '. Sample data.', ...figures].join(' '));
+      }
+
+      readTabBtn.addEventListener('click', readCurrentTab);
+
+      function openAccountTab(tabId, { focusPanel = true, announce = true } = {}) {
+        activeAccountTab = tabId;
+        for (const tab of accountTabs) {
+          const active = tab.id === 'tab-' + tabId;
+          tab.setAttribute('aria-selected', String(active));
+          tab.tabIndex = active ? 0 : -1;
+          const panel = document.getElementById(tab.getAttribute('aria-controls'));
+          panel.hidden = !active;
+          if (active && focusPanel) panel.focus();
+        }
+        if (announce) readCurrentTab();
+      }
+
+      accountTabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => openAccountTab(tab.id.slice(4), { focusPanel: false }));
+        tab.addEventListener('keydown', (event) => {
+          const offsets = { ArrowDown: 1, ArrowUp: -1 };
+          const offset = offsets[event.key];
+          let next;
+          if (offset) next = (index + offset + accountTabs.length) % accountTabs.length;
+          else if (event.key === 'Home') next = 0;
+          else if (event.key === 'End') next = accountTabs.length - 1;
+          else return;
+          event.preventDefault();
+          const nextTab = accountTabs[next];
+          openAccountTab(nextTab.id.slice(4), { focusPanel: false });
+          nextTab.focus();
+        });
+      });
+
+      function renderAccount() {
+        accountForm.classList.toggle('hidden', Boolean(account));
+        accountDetails.classList.toggle('hidden', !account);
+        document.getElementById('profileInitials').textContent = account
+          ? account.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('') : 'Demo';
+        document.getElementById('accountName').textContent = account?.name ?? '';
+        document.getElementById('accountUserId').textContent = account?.userId ?? '';
+
+        const formatter = account && new Intl.NumberFormat(undefined, { style: 'currency', currency: account.currency });
+        const formatMoney = (amount) => formatter.format(amount / 10 ** formatter.resolvedOptions().maximumFractionDigits);
+        document.getElementById('accountBalance').textContent = account ? formatMoney(account.balanceMinor) : '—';
+        const rows = account?.transactions.map((transaction) => {
+          const row = document.createElement('li');
+          row.className = 'py-3 flex justify-between gap-3';
+          const description = document.createElement('span');
+          description.textContent = `${transaction.description} · ${transaction.date}`;
+          const amount = document.createElement('strong');
+          amount.textContent = formatMoney(transaction.amountMinor);
+          row.append(description, amount);
+          return row;
+        }) ?? [];
+        if (!rows.length) {
+          const row = document.createElement('li');
+          row.className = 'py-3';
+          row.textContent = account ? 'No transactions yet.' : 'Sign in to see your transactions.';
+          rows.push(row);
+        }
+        accountTransactions.replaceChildren(...rows);
+      }
+
+      function showAccount(view = 'details') {
+        if (view !== 'details') openAccountTab('checking', { focusPanel: false, announce: false });
+        if (!account || view === 'details') {
+          pendingAccountView = account ? null : view;
+          accountStatus.textContent = '';
+          if (!accountDialog.open) accountDialog.showModal();
+          if (!account) {
+            accountForm.elements.userId.focus();
+            speak('Sign in to view your demo account.');
+          } else speak('Demo account details.');
+          return;
+        }
+        const heading = document.getElementById(view);
+        heading.focus();
+        heading.scrollIntoView({ block: 'center' });
+        const message = view === 'balance' ? `Available balance: ${document.getElementById('accountBalance').textContent}.`
+          : `${account.transactions.length} recent transactions.`;
+        notify(message, 'success');
+        speak(message);
+      }
+
+      async function post(path, body, signal) {
+        const response = await fetch(path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || data.error || `HTTP ${response.status}`);
+        return data;
+      }
+
+      profileBtn.addEventListener('click', () => showAccount());
+      document.getElementById('balanceOptions').addEventListener('click', () => showAccount());
+      document.querySelector('a[href="#details"]').addEventListener('click', (event) => {
+        event.preventDefault();
+        showAccount();
+      });
+      document.querySelector('a[href="#transactions"]').addEventListener('click', (event) => {
+        event.preventDefault();
+        showAccount('transactions');
+      });
+      accountDialog.addEventListener('close', () => {
+        accountRequest?.abort();
+        pendingAccountView = null;
+        accountForm.elements.password.value = '';
+      });
+      accountForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (accountRequest) return;
+        const request = new AbortController();
+        accountRequest = request;
+        const submit = accountForm.querySelector('button');
+        submit.disabled = true;
+        accountStatus.textContent = 'Signing in…';
+        const credentials = Object.fromEntries(new FormData(accountForm));
+        accountForm.elements.password.value = '';
+        try {
+          account = await post('/api/account', credentials, request.signal);
+          renderAccount();
+          if (pendingAccountView && pendingAccountView !== 'details') {
+            const view = pendingAccountView;
+            accountDialog.close();
+            showAccount(view);
+          } else {
+            accountStatus.textContent = 'Signed in.';
+            document.getElementById('signOut').focus();
+            speak('Signed in. Your balance and recent transactions are ready.');
+          }
+        } catch (error) {
+          if (!request.signal.aborted) accountStatus.textContent = error.message;
+        } finally {
+          accountRequest = null;
+          submit.disabled = false;
+        }
+      });
+      document.getElementById('signOut').addEventListener('click', () => {
+        account = null;
+        renderAccount();
+        accountStatus.textContent = 'Signed out.';
+        accountForm.elements.userId.focus();
+        speak('Signed out.');
+      });
+
+      const intentViews = new Map([
+        ['RESPONCE_SHOW_BALANCE', 'balance'],
+        ['REPONCE_SHOW_TRANSACTIONS', 'transactions'],
+        ['RESPONSE_SHOW_NAME', 'details'],
+        ['RESPONSE_SHOW_USER_ID', 'details'],
+        ['RESPONSE_SHOW_ACCOUNT_SUMMARY', 'details'],
+      ]);
+      const localCommands = new Map([
+        ['show balance', () => showAccount('balance')],
+        ['show recent transactions', () => showAccount('transactions')],
+        ['show transactions', () => showAccount('transactions')],
+        ['show account details', () => showAccount()],
+        ['go home', () => openAccountTab('checking')],
+        ['focus command', () => transcriptInput.focus()],
+        ['read this tab', () => {
+          if (readAloud) readCurrentTab();
+          else notify('Turn on Read aloud first.');
+        }],
+        ...tabCommands.map(([tab, phrase]) => [phrase, () => openAccountTab(tab)]),
+      ]);
+
+      function runLocalCommand(text) {
+        const command = localCommands.get(text.toLowerCase().trim().replace(/[.!?]+$/, ''));
+        command?.();
+        return Boolean(command);
+      }
+
+      document.querySelector('a[href="#help"]').addEventListener('click', (event) => {
+        event.preventDefault();
+        drawerOpen = true;
+        updateDrawer();
+        document.getElementById('help').focus();
+      });
 
       // --- Byte Tracker ---
       function getBytes(str) {
@@ -818,88 +1008,64 @@
         });
       });
 
-      // --- Web Speech API Transcriber ---
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
-        recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-
-        let baseText = '';
+        const recognition = new SpeechRecognition();
+        recognition.lang = document.documentElement.lang || 'en-US';
+        let finalTranscript = '';
 
         recognition.onstart = () => {
-          isListening = true;
-          baseText = transcriptInput.value;
-          voiceDictationLabel.textContent = 'Release to stop';
+          voiceDictationLabel.textContent = 'Stop microphone';
           listeningBadge.classList.remove('hidden');
-          voiceDictationBtn.classList.add('bg-red-600', 'hover:bg-red-700');
-          voiceNavPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-red-400 animate-ping';
+          voiceNavPulseDot.classList.replace('bg-emerald-400', 'bg-red-400');
         };
-
-        recognition.onresult = (e) => {
-          let interim = '';
-          for (let i = e.resultIndex; i < e.results.length; ++i) {
-            const transcript = e.results[i][0].transcript;
-            if (e.results[i].isFinal) {
-              baseText += (baseText && !baseText.endsWith(' ') ? ' ' : '') + transcript;
-            } else {
-              interim += transcript;
-            }
+        recognition.onresult = (event) => {
+          for (let index = event.resultIndex; index < event.results.length; index++) {
+            if (event.results[index].isFinal) finalTranscript += ' ' + event.results[index][0].transcript;
           }
-          transcriptInput.value = baseText + (interim ? ' ' + interim : '');
-          transcriptInput.dispatchEvent(new Event('input'));
         };
-
-        recognition.onerror = (e) => {
-          notify(`Microphone warning: ${e.error}`, 'error');
-          stopVoice();
+        recognition.onerror = ({ error }) => {
+          if (error !== 'aborted') notify('Microphone error: ' + error + '. You can type a command.', 'error');
         };
-
         recognition.onend = () => {
-          stopVoice();
-        };
-
-        function startVoice() {
-          try {
-            recognition.start();
-          } catch {}
-        }
-
-        function stopVoice() {
-          isListening = false;
-          voiceDictationLabel.textContent = 'Hold to talk (or Space)';
+          micActive = false;
+          voiceDictationLabel.textContent = 'Start microphone';
           listeningBadge.classList.add('hidden');
-          voiceDictationBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
-          voiceNavPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
-          try { recognition.stop(); } catch {}
-        }
-
-        // Mouse / Touch hold to talk
-        voiceDictationBtn.addEventListener('mousedown', startVoice);
-        window.addEventListener('mouseup', () => { if (isListening) stopVoice(); });
-        voiceDictationBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startVoice(); });
-        voiceDictationBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopVoice(); });
-
-        // Spacebar hold to talk when not typing in an input
-        window.addEventListener('keydown', (e) => {
-          if (e.code === 'Space' && !['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) {
-            e.preventDefault();
-            if (!isListening) startVoice();
+          voiceNavPulseDot.classList.replace('bg-red-400', 'bg-emerald-400');
+          const text = finalTranscript.trim();
+          if (text && drawerOpen && !accountDialog.open) {
+            transcriptInput.value = text;
+            transcriptInput.dispatchEvent(new Event('input'));
+            if (!runLocalCommand(text)) notify('Transcript ready. Select Send command to continue.');
+          }
+        };
+        voiceDictationBtn.addEventListener('click', () => {
+          if (micActive) {
+            recognition.stop();
+            return;
+          }
+          try {
+            finalTranscript = '';
+            speechOutput?.cancel();
+            recognition.start();
+            micActive = true;
+            voiceDictationLabel.textContent = 'Starting microphone…';
+          } catch {
+            notify('The microphone could not start. You can type a command.', 'error');
           }
         });
-        window.addEventListener('keyup', (e) => {
-          if (e.code === 'Space' && !['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) {
-            e.preventDefault();
-            if (isListening) stopVoice();
-          }
-        });
+        const abortVoice = () => {
+          if (micActive) recognition.abort();
+        };
+        window.addEventListener('pagehide', abortVoice);
+        closeDrawerBtn.addEventListener('click', abortVoice);
+        toggleBtn.addEventListener('click', () => { if (!drawerOpen) abortVoice(); });
       } else {
-        voiceDictationLabel.textContent = 'Dictation not supported in browser';
-        voiceDictationBtn.classList.add('opacity-60', 'cursor-not-allowed');
+        voiceDictationLabel.textContent = 'Speech recognition unavailable';
+        voiceDictationBtn.disabled = true;
       }
 
-      // --- Generate Code (POST /api/generate) ---
+      // --- Send command (POST /api/generate) ---
       async function generateCode() {
         const text = transcriptInput.value.trim();
         if (!text) {
@@ -908,47 +1074,45 @@
           return;
         }
 
+        if (getBytes(text) > 8000) {
+          notify('The command is too long. Shorten it to 8,000 bytes.', 'error');
+          return;
+        }
         if (isBusy) return;
+        if (runLocalCommand(text)) return;
+        intentPill.classList.add('hidden');
         isBusy = true;
         generateBtn.disabled = true;
         generateSpinner.classList.remove('hidden');
-        generateBtnText.textContent = 'Generating...';
+        generateBtnText.textContent = 'Working…';
         drawerStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
-        drawerStatusLabel.textContent = 'GENERATING';
+        drawerStatusLabel.textContent = 'WORKING';
 
         const t0 = performance.now();
 
         try {
-          const res = await fetch(`${backendUrl}/api/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text }),
-          });
-
-          const elapsed = Math.round(performance.now() - t0);
-
-          if (!res.ok) {
-            let errorMsg = `HTTP ${res.status}`;
-            try {
-              const err = await res.json();
-              if (err.error) errorMsg = err.error + (err.message ? `: ${err.message}` : '');
-            } catch {}
-            throw new Error(errorMsg);
-          }
-
-          const data = await res.json();
-          if (data && typeof data.code === 'string') {
+          const data = await post('/api/generate', { text });
+          const tab = tabIntents.get(data.responseCode);
+          const view = intentViews.get(data.responseCode);
+          if (tab && data.code === null) {
+            openAccountTab(tab);
+          } else if (view && data.code === null) {
+            showAccount(view);
+          } else if (typeof data.code === 'string' && data.code.trim()) {
             codeOutputArea.value = data.code;
-            if (data.responseCode) {
-              sentimentPill.textContent = data.responseCode;
-              sentimentPill.classList.remove('hidden');
-            }
-            drawerStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
-            drawerStatusLabel.textContent = 'READY';
-            notify(`Generated JavaScript (${elapsed} ms)${data.message ? ': ' + data.message : ''}`, 'success');
+            const elapsed = Math.round(performance.now() - t0);
+            notify(data.message || `Generated JavaScript (${elapsed} ms).`, 'success');
+            speak('Generated JavaScript is ready.');
           } else {
-            throw new Error('Server returned empty or invalid code object');
+            throw new Error(data.message || 'No action was recognized. Try rephrasing.');
           }
+
+          if (data.responseCode) {
+            intentPill.textContent = data.responseCode;
+            intentPill.classList.remove('hidden');
+          }
+          drawerStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+          drawerStatusLabel.textContent = 'READY';
         } catch (err) {
           drawerStatusDot.className = 'w-2 h-2 rounded-full bg-red-500';
           drawerStatusLabel.textContent = 'ERROR';
@@ -957,7 +1121,7 @@
           isBusy = false;
           generateBtn.disabled = false;
           generateSpinner.classList.add('hidden');
-          generateBtnText.textContent = 'Generate Code';
+          generateBtnText.textContent = 'Send command';
         }
       }
 
@@ -982,25 +1146,10 @@
         const t0 = performance.now();
 
         try {
-          const res = await fetch(`${backendUrl}/api/execute`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code }),
-          });
-
+          const result = await post('/api/execute', { code });
           const elapsed = Math.round(performance.now() - t0);
           runtimeLabel.textContent = `Runtime: ${elapsed} ms`;
 
-          if (!res.ok) {
-            let errorMsg = `HTTP ${res.status}`;
-            try {
-              const err = await res.json();
-              if (err.error) errorMsg = err.error;
-            } catch {}
-            throw new Error(errorMsg);
-          }
-
-          const result = await res.json();
           const stdout = result.stdout || '';
           const stderr = result.stderr || '';
           const exit = result.exitCode !== undefined ? result.exitCode : 0;
@@ -1035,7 +1184,13 @@
       // Copy script
       copyScriptBtn.addEventListener('click', async () => {
         if (!codeOutputArea.value) return;
-        await navigator.clipboard.writeText(codeOutputArea.value);
+        try {
+          await navigator.clipboard.writeText(codeOutputArea.value);
+        } catch {
+          codeOutputArea.select();
+          notify('Clipboard access is unavailable. Copy the selected script manually.');
+          return;
+        }
         copyScriptBtn.textContent = 'Copied!';
         setTimeout(() => copyScriptBtn.textContent = 'Copy', 1500);
       });
@@ -1043,6 +1198,7 @@
       // Clear terminal
       clearTerminalBtn.addEventListener('click', () => {
         terminalOutput.textContent = 'Cleared.';
+        runtimeLabel.textContent = 'Runtime: -';
         exitBadge.textContent = 'exit: -';
         exitBadge.className = 'px-1.5 py-0.2 bg-slate-800 text-slate-300 rounded-xs';
       });
