@@ -735,6 +735,28 @@
     const GAZE_DWELL_RING_CIRCUMFERENCE = 106.8; // 2 * PI * r(17), matches the SVG ring above
     const GAZE_HOVER_SELECTOR = 'button, [data-nav], .card, h1, h2, a, [role="listitem"]';
     const GAZE_CLICKABLE_SELECTOR = 'button, [data-nav], a';
+    // Gaze only ever arrives once the tracker has finished calibrating (it doesn't call onGaze
+    // before reaching its "tracking" state), so this generous hitbox applies specifically to
+    // post-calibration gaze, not to mouse/keyboard use of the same page.
+    const GAZE_HITBOX_MARGIN_PX = 28;
+
+    // Exact pixel-perfect hit-testing is unforgiving for noisy gaze. Try the precise hit first
+    // (respects real stacking/visibility); if it misses, fall back to the nearest matching element
+    // whose bounding box -- padded by GAZE_HITBOX_MARGIN_PX -- contains the gaze point.
+    function findGazeTarget(x, y, selector) {
+      const exact = document.elementFromPoint(x, y)?.closest(selector);
+      if (exact) return exact;
+      let best = null, bestDist = Infinity;
+      document.querySelectorAll(selector).forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return;
+        if (x < r.left - GAZE_HITBOX_MARGIN_PX || x > r.right + GAZE_HITBOX_MARGIN_PX ||
+            y < r.top - GAZE_HITBOX_MARGIN_PX || y > r.bottom + GAZE_HITBOX_MARGIN_PX) return;
+        const dist = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
+        if (dist < bestDist) { bestDist = dist; best = el; }
+      });
+      return best;
+    }
 
     function clearGazeExpansion() {
       if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null; }
@@ -821,12 +843,12 @@
       gazeCursorCore.setAttribute('fill', fixating ? '#34d399' : '#fbbf24');
 
       if (!hciLensActive) return;
-      const el = document.elementFromPoint(x, y);
       const now = performance.now();
 
       // Magnifier HUD text: the broader set (cards, headers, list items too), settled the same way
-      // so the HUD text doesn't flicker, but never scaled up.
-      const hoverCandidate = el ? el.closest(GAZE_HOVER_SELECTOR) : null;
+      // so the HUD text doesn't flicker, but never scaled up. Uses the expanded post-calibration
+      // hitbox (see findGazeTarget) so noisy gaze doesn't have to land pixel-perfectly.
+      const hoverCandidate = findGazeTarget(x, y, GAZE_HOVER_SELECTOR);
       if (hoverCandidate !== pendingHoverTarget) { pendingHoverTarget = hoverCandidate; pendingHoverSince = now; }
       if (hoverCandidate !== hoverTarget && now - pendingHoverSince >= GAZE_SETTLE_MS) {
         hoverTarget = hoverCandidate;
@@ -834,7 +856,7 @@
       }
 
       // Expansion + dwell-to-click: only real clickable controls (button, [data-nav], a).
-      const expandCandidate = el ? el.closest(GAZE_CLICKABLE_SELECTOR) : null;
+      const expandCandidate = findGazeTarget(x, y, GAZE_CLICKABLE_SELECTOR);
       if (expandCandidate !== pendingExpandTarget) { pendingExpandTarget = expandCandidate; pendingExpandSince = now; }
       if (expandCandidate !== expandTarget && now - pendingExpandSince >= GAZE_SETTLE_MS) {
         clearGazeExpansion();

@@ -8,6 +8,11 @@
   :root { color-scheme: dark; --bg:#0b0d10; --fg:#e8eaed; --ac:#4fd1c5; --mut:#8a919a; }
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; overflow:hidden; }
+  /* Embedded mode only (frontend/index.html): body.embed-dim is toggled by setState() -- dimmed
+     while idle/calibrating so the dots are easier to focus on, transparent once tracking so the
+     dashboard underneath is fully visible again. */
+  body.embed-dim { background: rgba(4, 10, 20, 0.38) !important; transition: background 0.4s ease; }
+  body:not(.embed-dim) { background: transparent !important; }
   canvas#c { position:fixed; inset:0; width:100%; height:100%; z-index:6; pointer-events:none; }
   #panel { position:fixed; left:12px; top:12px; width:250px; background:#14181dcc; border:1px solid #2a313a; border-radius:10px; padding:10px; backdrop-filter:blur(6px); z-index:5; }
   #panel h1 { font-size:14px; margin:0 0 6px; color:var(--ac); }
@@ -217,7 +222,18 @@ const log = [], heat = { cols: 64, rows: 36, a: new Float32Array(64 * 36) };
 const fix = { x: 0, y: 0, t0: 0, on: false, pts: [] };
 let target = null; // {x,y,r,label}
 
-const setState = s => { state = s; $("sState").textContent = s; $("bRecal").classList.toggle("hide", s !== "tracking"); $("bDrift").classList.toggle("hide", s !== "tracking"); $("bar").classList.toggle("dim", s !== "tracking" && s !== "idle"); notifyParentState(s); };
+const setState = s => {
+  state = s; $("sState").textContent = s;
+  $("bRecal").classList.toggle("hide", s !== "tracking"); $("bDrift").classList.toggle("hide", s !== "tracking");
+  $("bar").classList.toggle("dim", s !== "tracking" && s !== "idle");
+  // While embedded, dim the dashboard showing through behind every pre-tracking state (idle,
+  // loading, calibrating, training, validating) so the calibration dots are easier to focus on;
+  // clear it the moment tracking actually starts and the dashboard becomes the thing to look at.
+  if (new URLSearchParams(location.search).get("embed") === "1") {
+    document.body.classList.toggle("embed-dim", s !== "tracking");
+  }
+  notifyParentState(s);
+};
 // Bridge to a same-origin host page embedding this tracker in an <iframe> (see frontend/index.html).
 // No-ops when opened standalone (window.parent === window) or when the host doesn't define the hook.
 function notifyParentState(s) { try { if (window.parent !== window) window.parent.__onTrackerState?.(s); } catch {} }
@@ -387,7 +403,10 @@ if (new URLSearchParams(location.search).get("embed") === "1") {
   // "transparent" backgrounds below still render solid black.
   document.documentElement.style.colorScheme = "normal";
   document.documentElement.style.background = "transparent";
-  document.body.style.background = "transparent";
+  // body's background is owned by the .embed-dim class from here on (toggled in setState): dimmed
+  // through every pre-tracking state, fully clear once tracking starts. Set the initial state to
+  // match -- page loads as "idle", before setState() has ever run once.
+  document.body.classList.add("embed-dim");
 
   const embedStyle = document.createElement("style");
   embedStyle.textContent = `
