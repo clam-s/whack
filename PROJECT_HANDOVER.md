@@ -4,15 +4,15 @@
 - **Event**: WHACK 2026 Hackathon.
 - **Challenge Sponsor**: Capital One.
 - **Problem Statement**:
-  > *"Best financial hack: 'Make Credit Accessible'. It’s important for our customers to be able to independently manage their finances. We’d love to see some hacks that would help us to help customers with accessibility requirements to manage their account."*
+  > *"Best financial hack: 'Make Credit Accessible'. It's important for our customers to be able to independently manage their finances. We'd love to see some hacks that would help us to help customers with accessibility requirements to manage their account."*
 - **Core Mission**: Build an accessible, multimodal financial dashboard that empowers individuals with visual, physical/motor, and cognitive disabilities to independently view, understand, and manage their finances.
 
 ---
 
 ## 2. Team Split & Responsibilities
-- **Teammates A & B**: Building the real-time **Eye-Tracking model/pipeline** and the **Voice Command / Speech Integration layer**.
-- **Ammar & Teammate C (This Workspace)**: Architecting and implementing the **Accessible Capital One Frontend Dashboard**, state management, HCI interaction patterns, and account actions.
-- **Teammate Aydin (Backend Contributor)**: Managing `/backend` Node.js services (`server.mjs`, `openrouter.mjs`, `accounts.mjs`, `intent-responses.json`).
+- **Teammates A & B**: Original real-time **Eye-Tracking model/pipeline** and **Voice Command / Speech Integration** research. Their eye-tracking work landed as `eyetracker_v4.html` (see §3.1) and is now wired into the live dashboard.
+- **Ammar (This Workspace, with Claude)**: Accessible Capital One Frontend Dashboard, state management, HCI interaction patterns, account actions, and the **live webcam eye-tracking integration** (§7).
+- **Teammate Aydin (Backend + Voice Contributor)**: `/backend` Node.js services (`server.mjs`, `openrouter.mjs`, `accounts.mjs`, `intent-responses.json`), the dashboard-to-backend wiring (`frontend/linking.js`), demo auto sign-in, and Firefox speech transcription.
 
 ---
 
@@ -21,18 +21,26 @@
 ```
 whack/
 ├── backend/
-│   ├── server.mjs                # HTTP server (ports 3001), CORS origin checks
-│   ├── openrouter.mjs            # OpenRouter API: Speech transcript to intent/script
+│   ├── server.mjs                # HTTP server (port 3001), CORS origin checks, voice transcription route
+│   ├── openrouter.mjs            # OpenRouter API: transcript -> intent/script, Whisper transcription
 │   ├── runner.mjs                # Docker execution sandbox (node:22-bookworm-slim)
 │   ├── accounts.mjs              # SQLite account lookup service
 │   ├── intent-responses.json     # Intent classification mapping
-│   └── data/accounts.sqlite      # SQLite demo database
+│   └── data/
+│       ├── accounts.sqlite       # SQLite demo database
+│       └── voice-clips/          # Optional debug recordings (gitignored; DEBUG_STORE_VOICE_CLIPS=true)
 ├── frontend/
-│   ├── index.html                # Main single-page application & UI components
-│   └── actions.js                # Central state store & Action Registry
+│   ├── index.html                # Main single-page application, UI, and the eye-tracking bridge script
+│   ├── actions.js                # Central state store & Action Registry (window.appStore / C1Store)
+│   ├── linking.js                # Wires the dashboard to the backend: account sign-in, voice commands,
+│   │                              #   Firefox speech transcription, high-contrast/magnification prefs
+│   └── eyeTracking/
+│       └── eyetracker_v4.html    # Standalone + embeddable webcam gaze tracker (MediaPipe FaceLandmarker)
 ├── .env.example                  # Environment configuration template
 └── README.md                     # Base project technical documentation
 ```
+
+**3.1 Where `eyetracker_v4.html` came from.** Three eye-tracking branches existed on `origin` (`eyetracking`, `eyeTrackingV2`, `realeyetracking`). `eyeTrackingV2` was pulled in because it was the only one built on top of current `main`, was a single self-contained file (the others accidentally committed `node_modules` or pulled in a submodule), and its commit message ("eye tracking improved and reskinned") indicated it superseded the rest. It is a from-scratch in-browser gaze tracker: webcam → MediaPipe `FaceLandmarker` → a 13-point calibration + 5-point validation pass → ridge regression + One-Euro filtering → smoothed `(x, y)` gaze with I-VT fixation/saccade detection. No external gaze SDK is used.
 
 ---
 
@@ -45,66 +53,38 @@ whack/
    - **Accepts**: JSON `{ "code": "<script>" }` (Max 16,384 bytes).
    - **Constraints**: Completely offline (`--network=none`), read-only filesystem (`--read-only`), 128MB RAM, 5-second timeout, 16 KiB output limit per stream.
    - **Architectural Note**: Code executed inside Docker cannot mutate the browser DOM or frontend store. Therefore, browser navigation and financial transactions are handled via structured action mapping.
-3. **CORS / `FRONTEND_ORIGIN`**:
+3. **Voice transcription (new)**: a speech-to-text route backed by `OPENROUTER_TRANSCRIPTION_MODEL` (default `openai/whisper-large-v3`), added for the Firefox fallback path where the Web Speech API isn't available. Set `DEBUG_STORE_VOICE_CLIPS=true` to persist uploaded recordings to `backend/data/voice-clips/` for debugging (gitignored).
+4. **`POST /api/account`**: unchanged — returns `userId`, `name`, `balanceMinor`, `currency`, `transactions`. The dashboard now calls this automatically on load (auto sign-in to the demo account) via `frontend/linking.js`.
+5. **CORS / `FRONTEND_ORIGIN`**:
    - The backend validates `Origin` against `FRONTEND_ORIGIN` (default: `http://localhost:5173` or `http://127.0.0.1:3001`).
-   - Opening `index.html` as `file://` causes the browser to send `Origin: null`, which the backend rejects with `403`. 
+   - Opening `index.html` as `file://` causes the browser to send `Origin: null`, which the backend rejects with `403`.
    - When communicating with the live backend, run `python3 -m http.server 5173 --directory frontend`.
+
+**⚠️ Known issue, not fixed in this session:** `.env` (containing a live `OPENROUTER_API_KEY`) is tracked in git, not ignored. Harmless while the repo stays private, but the key should be rotated and `.env` removed from history before this repo is ever made public.
 
 ---
 
 ## 5. Frontend Architecture & Features Implemented
 
 ### A. Central State Store & Action Registry ([`frontend/actions.js`](frontend/actions.js))
-- Built as a **Universal Module (UMD)** compatible with browser scripts (`window.C1Store`), ES modules, and Node environments without CORS issues on `file://`.
+- Built as a **Universal Module (UMD)** compatible with browser scripts (`window.C1Store`/`window.appStore`), ES modules, and Node environments without CORS issues on `file://`.
 - **All dates are dynamic**: Driven by `getToday()` and `getRelativeDate(offsetDays)` (no stale hardcoded 2024 dates).
-- **Working Views Implemented**:
-  1. `checking`: Full balance overview ($4,200.10), routing info, transaction history, upcoming payments, spending meters.
-  2. `savings`: 360 Performance Savings ($18,450.75, 4.25% APY, YTD interest, deposit shortcuts).
-  3. `credit-cards`: Venture X Rewards ($1,420.50 owed, $13,579.50 available credit, APR, due dates, live lock toggle).
-  4. `loans`: Auto Loan ($12,350.00 principal, $345.20/mo, 5.19% APR).
-  5. `rewards`: Capital One Venture Miles (64,250 miles, cash value $642.50, retail partner deals).
-  6. `account-details`: Full account and routing numbers for direct deposits.
-  7. `send-money`: Zelle-style peer-to-peer payment flow.
-  8. `transfer`: Inter-account funds transfer.
-  9. `lock-card`: Dedicated card security toggle with plain-language rules.
-  10. `statements`: PDF statement history.
-  11. `open-account`: Deposit account creation workflow.
-  12. `upcoming-all`: Scheduled bill and autopay management with cancellation.
-  13. `recent-all`: Full transaction ledger with live text filter and search.
+- **Working Views Implemented**: `checking`, `savings`, `credit-cards`, `loans`, `rewards`, `account-details`, `send-money`, `transfer`, `lock-card`, `statements`, `open-account`, `upcoming-all`, `recent-all` (unchanged this session — see prior handover revisions for the full per-view breakdown).
 
-### B. Action Registry (The Single Way State Mutates)
-| Action Function | Parameters | Description | Confirmation Required? |
-| :--- | :--- | :--- | :---: |
-| `navigateTo(page, params)` | `page`, `params` | Switches view and manages header focus. | No |
-| `requestTransfer(from, to, amount)` | `fromId`, `toId`, `amt` | Validates balances and stages confirmation. | **Yes** |
-| `requestSendMoney(recipient, amount, note, source)` | `recip`, `amt`, `note`, `src` | Validates funds and stages Zelle payment. | **Yes** |
-| `confirmPendingAction()` | *none* | Commits pending transfer/send/open action. | **Yes** |
-| `cancelPendingAction()` | *none* | Discards pending staged action. | No |
-| `toggleCardLock(cardId)` | `cardId` | Locks or unlocks credit card instantly. | No |
-| `requestOpenAccount(type, deposit, name)` | `type`, `dep`, `name` | Stages new account creation with funding. | **Yes** |
-| `cancelUpcomingPayment(id)` | `paymentId` | Cancels scheduled future bill. | No |
-| `toggleHighContrast()` | *none* | Toggles high-contrast accessibility mode. | No |
-| `getBalance(id)` | `accountId` | Read-only balance query helper. | No |
-| `getSpending(category, days)` | `category`, `days` | Aggregates spend by category over time. | No |
+### B. Dashboard ↔ Backend Wiring ([`frontend/linking.js`](frontend/linking.js)) — new this session, by Aydin
+- Auto signs in to the demo account (`demo-user` / `whack-demo-only`) against `POST /api/account` on load; renders live balance/transaction data into the existing views instead of the static fictional numbers.
+- Wires the voice command drawer to the backend: text or microphone input → `/api/generate` → intent routed to `C1Store` actions; Firefox (no Web Speech API) falls back to recording a clip and sending it to the new transcription route.
+- Persists High Contrast and Magnification preferences to `localStorage` (`whack.highContrast`, `whack.magnification`) so they survive reloads.
 
 ### C. Human-Computer Interaction (HCI) & Accessibility Innovations
 1. **Fitts' Law & Target Expansion (`.hci-lens-active`)**:
-   - Toggled via the **"Gaze Lens"** button in the header.
-   - Grounded in Fitts' Law: $MT = a + b \log_2(2D/W)$. Expanding target width ($W$) compensates for eye-tracker calibration drift, microsaccadic gaze jitter, and motor tremors.
-   - **visionOS-inspired styling**: Avoids harsh colored borders; instead uses weighted physical lift (`translateY(-3px)` + `scale(1.05)`), soft diffused ambient drop shadow (`rgba(0, 30, 60, 0.18)`), and subtle depth illumination.
-2. **Apple-style Floating Hover Magnifier HUD**:
-   - Frosted glass panel (`backdrop-blur-xl`) floating on screen during Gaze Lens mode.
-   - Enlarges any hovered/gazed number or text into clean 20px+ bold typography.
-   - Features a **"🔊 Speak"** button powered by native Web Speech API (`window.speechSynthesis`).
-3. **"Listen Aloud" Full Account Audio Summary**:
-   - Header button speaking a natural language account overview: checking balance, loan due dates, card lock state.
-4. **WCAG AA Compliance**:
-   - Color contrast meets or exceeds 4.5:1 on light backgrounds and 7:1 on deep navy backgrounds.
-   - Touch/click targets minimum 44px height (`min-h-[44px]`).
-   - High Contrast toggle (`class="high-contrast"`).
-   - `@media (prefers-reduced-motion: reduce)` supported.
-   - Full keyboard navigation with screen reader announcements (`aria-live="polite"`).
-   - Safe financial confirmation step with large 48px Yes/No buttons for all money-moving actions.
+   - Toggled via the **"Gaze Lens"** button in the header, and auto-enabled the moment live eye tracking starts (§7).
+   - Grounded in Fitts' Law: expanding target width compensates for eye-tracker calibration drift, microsaccadic gaze jitter, and motor tremors.
+   - Scale bumped this session from `scale(1.05) translateY(-3px)` to **`scale(1.16) translateY(-7px)`** with a stronger ambient shadow, per direct feedback that the original was too subtle.
+   - Originally only fired on real mouse `:hover`/`:focus` — meaning gaze input (synthetic, not a real browser hover state) silently did nothing. Fixed via a `.gaze-active-target` class applied directly by the eye-tracking bridge, scoped to `button, [data-nav], a` only (not `.card`/`h1`/`h2`, which would look broken scaling up).
+2. **Apple-style Floating Hover Magnifier HUD**: unchanged — frosted glass panel enlarging hovered/gazed text, with a 🔊 Speak button via `window.speechSynthesis`.
+3. **"Listen Aloud" Full Account Audio Summary**: unchanged.
+4. **WCAG AA Compliance**: unchanged (4.5:1 / 7:1 contrast, 44px+ touch targets, reduced-motion support, live-region announcements, confirmation steps on money-moving actions).
 
 ---
 
@@ -114,24 +94,50 @@ whack/
 ```bash
 open frontend/index.html
 ```
-*(Runs completely self-contained with fictional data on `file://` or HTTP).*
+*(Runs self-contained with fictional data on `file://`; backend calls and live eye tracking both require the HTTP server below.)*
 
-### Running With Local HTTP Server (Recommended for API integration):
+### Running With Local HTTP Server (required for the backend and eye tracking):
 ```bash
 python3 -m http.server 5173 --directory frontend
 ```
-Visit: `http://localhost:5173`
+Visit: `http://localhost:5173/index.html`
 
 ### Running the Backend:
 ```bash
 cp .env.example .env
 # Set OPENROUTER_API_KEY, OPENROUTER_MODEL, FRONTEND_ORIGIN=http://localhost:5173
+# Optionally set OPENROUTER_TRANSCRIPTION_MODEL and DEBUG_STORE_VOICE_CLIPS
 node --env-file=.env backend/server.mjs
 ```
 
+### Trying Live Eye Tracking:
+1. In the dashboard header, click **"Eye Tracking"** (next to "Gaze Lens").
+2. An overlay appears on top of the dashboard (dimmed, so the calibration dots are easy to focus on). Click **"Start camera and calibrate"** inside it and approve the webcam prompt.
+3. Follow the calibration dots, then the 10s smooth-pursuit pass.
+4. Once calibration finishes, the badge flips to **LIVE**, the dashboard clears back to full visibility, and your gaze (shown as a small dot) drives the Gaze Lens: hovering a button/nav item expands it, and holding your gaze on it for **2 seconds fills a ring and clicks it**.
+5. If drift creeps in, click **"Recalibrate"** in the header — no reload needed.
+
 ---
 
-## 7. Next Steps for Next Session / Teammates
-1. **Eye-Tracking Integration**: Hook up the gaze coordinates from the eye-tracking model to target DOM elements and trigger the Gaze Lens hover/dwell states.
-2. **Voice Layer Integration**: Connect the Web Speech API / OpenRouter backend to map spoken intents directly to `window.C1Store.navigateTo`, `window.C1Store.requestSendMoney`, or `window.C1Store.requestTransfer`.
-3. **CreditWise Simulator**: Add an interactive score simulator to demonstrate what actions improve credit rating.
+## 7. Live Eye Tracking Integration (built this session)
+
+`frontend/eyeTracking/eyetracker_v4.html` is embedded into `index.html` as a **same-origin `<iframe>`**, not run as a separate page/tab — gaze tracking needs the webcam watching the user while the thing they're looking at (the dashboard) is on screen, which only works if both live in the same document.
+
+- **Bridge, not postMessage**: because the iframe is same-origin, the tracker calls `window.parent.__onTrackerState(state)` and `window.parent.__onExternalGaze(x, y, fixating)` directly — no serialization, no listener boilerplate.
+- **Click-through handoff**: while calibrating, the iframe stays `pointer-events: auto` so its own UI (Start/Recalibrate/Drift-fix) is reachable. The instant it reaches the `"tracking"` state, the parent sets the iframe to `pointer-events: none`, handing the page back to the dashboard. A header "Recalibrate" button temporarily re-enables it and calls `iframe.contentWindow.recalibrateGaze()`.
+- **Coordinate space**: the iframe covers the full viewport, so gaze coordinates from the tracker are already in this document's viewport pixels — no cross-window scaling/guessing needed.
+- **Calibration-phase dimming**: `body.embed-dim` (toggled from the tracker's own `setState()`) darkens the dashboard showing through behind the overlay for every pre-tracking state, clearing to fully transparent the moment tracking starts. Fixing this required also resetting `color-scheme` to `normal` inside the iframe — Chrome paints an opaque dark UA canvas color behind `background: transparent` on a page that declares `color-scheme: dark`, which is why the overlay first appeared to "stay solid black" even with a transparent background set.
+- **Gaze hit-testing**: tries an exact `elementFromPoint` hit first, then falls back to the nearest clickable element within a **28px padded bounding box** (`GAZE_HITBOX_MARGIN_PX`). This only ever applies post-calibration, since the tracker doesn't emit gaze samples before reaching `"tracking"`.
+- **Settle window**: raw gaze is jittery even while "settled" (head/webcam noise, not real intent). A target must hold under gaze for `GAZE_SETTLE_MS` (110ms) before it "wins" — tracked separately for the magnifier HUD (broad selector: buttons, nav, cards, headers, list items) and the expand/dwell target (clickable-only: `button, [data-nav], a`), so the HUD and the expansion/click logic never fight over different elements.
+- **2-second gaze dwell-to-click**: holding gaze on a clickable control fills an SVG progress ring around the gaze cursor (`#gazeDwellRing`, `GAZE_DWELL_CLICK_MS = 2000`); completing it fires a real `.click()` and an `aria-live` announcement. Looking away before 2s cancels it.
+- **Overlay restyling**: the standalone tracker's dark dev-tool look (teal accents, glass panel) is overridden in embedded mode (`?embed=1`) to the Capital One palette (navy `#004879`, white pill buttons), and the control bar was moved from top-left (where it sat directly on top of the Capital One logo) to bottom-left.
+- **Tunable constants** (all in the eye-tracking bridge script inside `frontend/index.html`, plus one in `eyetracker_v4.html`): `GAZE_SETTLE_MS`, `GAZE_DWELL_CLICK_MS`, `GAZE_HITBOX_MARGIN_PX`, the `.gaze-active-target` scale/shadow values in the `<style>` block, and the `rgba(4, 10, 20, 0.38)` dim amount in `eyetracker_v4.html`.
+
+---
+
+## 8. Next Steps for Next Session / Teammates
+1. **Tune live gaze reliability further**: the settle window and hitbox margin are first-pass values from one session of testing — expect to retune `GAZE_SETTLE_MS`/`GAZE_HITBOX_MARGIN_PX` against more users and lighting conditions before the demo.
+2. **Voice Layer**: `linking.js` already wires text/voice input to `/api/generate` → `C1Store` actions, plus a Firefox transcription fallback. Still untested end-to-end with `requestTransfer`/`requestSendMoney` confirmation flows.
+3. **CreditWise Simulator**: not started — an interactive score simulator to demonstrate what actions improve credit rating.
+4. **Security hygiene before going public**: rotate the OpenRouter key and remove `.env` from git history (see §4 warning).
+5. **Mobile/tablet testing**: the live eye-tracking overlay and dwell-click logic have only been exercised on desktop Chrome so far.
