@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PreciseGaze v2: in-browser eye tracker</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b0d10; --fg:#e8eaed; --ac:#4fd1c5; --mut:#8a919a; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; overflow:hidden; }
+  canvas#c { position:fixed; inset:0; width:100%; height:100%; z-index:6; pointer-events:none; }
+  #panel { position:fixed; left:12px; top:12px; width:250px; background:#14181dcc; border:1px solid #2a313a; border-radius:10px; padding:10px; backdrop-filter:blur(6px); z-index:5; }
+  #panel h1 { font-size:14px; margin:0 0 6px; color:var(--ac); }
+  #panel .row { display:flex; justify-content:space-between; color:var(--mut); font-size:12px; }
+  #panel .row b { color:var(--fg); font-weight:600; }
+  #vid { position:fixed; left:0; top:0; width:2px; height:2px; opacity:0; pointer-events:none; }
+  #bar { position:fixed; left:12px; top:12px; display:flex; gap:8px; z-index:5; }
+  #bar button { margin:0; padding:8px 14px; font-size:13px; }
+  #bar.dim { opacity:.4; }
+  #center { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:4; pointer-events:none; }
+  #msg { max-width:560px; text-align:center; background:#14181df0; border:1px solid #2a313a; border-radius:14px; padding:22px 26px; pointer-events:auto; }
+  #msg h2 { margin:0 0 8px; } #msg p { color:var(--mut); margin:6px 0; }
+  button { background:var(--ac); color:#04201d; border:0; border-radius:8px; padding:10px 18px; font-weight:700; font-size:14px; cursor:pointer; margin-top:10px; }
+  input[type=number] { width:56px; background:#0b0d10; color:var(--fg); border:1px solid #2a313a; border-radius:4px; }
+  .hide { display:none !important; }
+  kbd { background:#222a33; border-radius:4px; padding:0 5px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<video id="vid" playsinline muted></video>
+<div id="bar"><button id="bPtr">Eye pointer: off</button><button id="bRecal" class="hide">Recalibrate</button><button id="bDrift" class="hide">Drift-fix</button></div>
+<div id="panel" class="hide">
+  <h1>PreciseGaze</h1>
+  <div class="row"><span>State</span><b id="sState">idle</b></div>
+  <div class="row"><span>FPS</span><b id="sFps">0</b></div>
+  <div class="row"><span>Face</span><b id="sFace">no</b></div>
+  <div class="row"><span>Gaze (px)</span><b id="sGaze">-</b></div>
+  <div class="row"><span>Fixation</span><b id="sFix">-</b></div>
+  <div class="row"><span>Calib. CV error</span><b id="sCV">-</b></div>
+  <div class="row"><span>Validation error</span><b id="sVal">-</b></div>
+  <div class="row"><span>Viewing dist (cm)</span><input id="dist" type="number" value="60" min="25" max="120"></div>
+  <div class="row" style="margin-top:6px"><span><kbd>C</kbd> recalibrate <kbd>D</kbd> drift-fix <kbd>H</kbd> heatmap <kbd>E</kbd> export CSV <kbd>L</kbd> landmarks</span></div>
+</div>
+<div id="center"><div id="msg">
+  <h2>Webcam eye tracking</h2>
+  <p>Runs 100% locally. Video never leaves your browser.</p>
+  <p>Sit about 50 to 70 cm away, face evenly lit (light in front of you, not behind), and keep your head fairly still. Look at each dot until it vanishes, then follow the moving dot for 10 s. Clicking anywhere while tracking also refines the model.</p>
+  <button id="go">Start camera and calibrate</button>
+  <p id="err" style="color:#ff8a80"></p>
+</div></div>
+
+<script type="module">
+import { FilesetResolver, FaceLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+
+const $ = id => document.getElementById(id);
+const cv = $("c"), ctx = cv.getContext("2d"), vid = $("vid");
+let W = 0, H = 0, DPR = 1;
+function resize() { DPR = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; cv.width = W * DPR; cv.height = H * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+addEventListener("resize", resize); resize();
+
+/* ---------- utilities ---------- */
+const median = a => { const s = [...a].sort((x, y) => x - y), n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : 0; };
+const pxPerDeg = () => { const d = +$("dist").value || 60; return Math.tan(Math.PI / 180) * d * 10 / 0.2646; }; // CSS px per degree (96 dpi assumption)
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+class OneEuro {
+  constructor(minC = 0.8, beta = 0.004, dC = 1) { Object.assign(this, { minC, beta, dC }); this.x = null; }
+  a(c, dt) { const tau = 1 / (2 * Math.PI * c); return 1 / (1 + tau / dt); }
+  f(v, t) {
+    if (this.x === null) { this.x = v; this.dx = 0; this.t = t; return v; }
+    const dt = Math.max(t - this.t, 1e-3); this.t = t;
+    const dx = (v - this.x) / dt; this.dx += this.a(this.dC, dt) * (dx - this.dx);
+    const c = this.minC + this.beta * Math.abs(this.dx);
+    this.x += this.a(c, dt) * (v - this.x); return this.x;
+  }
+  reset() { this.x = null; }
+}
+
+/* ---------- ridge regression ---------- */
+function solve(A, b) { // Gaussian elimination, partial pivoting; A n x n, b n
+  const n = b.length, M = A.map((r, i) => [...r, b[i]]);
+  for (let i = 0; i < n; i++) {
+    let p = i; for (let r = i + 1; r < n; r++) if (Math.abs(M[r][i]) > Math.abs(M[p][i])) p = r;
+    [M[i], M[p]] = [M[p], M[i]];
+    const d = M[i][i] || 1e-12;
+    for (let r = i + 1; r < n; r++) { const f = M[r][i] / d; if (f) for (let c = i; c <= n; c++) M[r][c] -= f * M[i][c]; }
+  }
+  const x = new Array(n).fill(0);
+  for (let i = n - 1; i >= 0; i--) { let s = M[i][n]; for (let j = i + 1; j < n; j++) s -= M[i][j] * x[j]; x[i] = s / (M[i][i] || 1e-12); }
+  return x;
+}
+function solveM(A, B) {
+  const n = A.length, k = B[0].length, M = A.map((r, i) => [...r, ...B[i]]);
+  for (let i = 0; i < n; i++) {
+    let p = i; for (let r = i + 1; r < n; r++) if (Math.abs(M[r][i]) > Math.abs(M[p][i])) p = r;
+    [M[i], M[p]] = [M[p], M[i]]; const d = M[i][i] || 1e-12;
+    for (let r = i + 1; r < n; r++) { const f = M[r][i] / d; if (f) for (let c = i; c < n + k; c++) M[r][c] -= f * M[i][c]; }
+  }
+  const X = Array.from({ length: n }, () => new Array(k).fill(0));
+  for (let c = 0; c < k; c++) for (let i = n - 1; i >= 0; i--) { let s = M[i][n + c]; for (let j = i + 1; j < n; j++) s -= M[i][j] * X[j][c]; X[i][c] = s / (M[i][i] || 1e-12); }
+  return X;
+}
+const sub = (a, n) => a.length <= n ? a : Array.from({ length: n }, (_, i) => a[Math.floor(i * a.length / n)]);
+function ridge(X, y, w, lam) { // X rows include bias col 0 (unpenalised); w sample weights
+  const n = X[0].length, A = Array.from({ length: n }, () => new Array(n).fill(0)), b = new Array(n).fill(0);
+  for (let k = 0; k < X.length; k++) { const r = X[k], wk = w[k];
+    for (let i = 0; i < n; i++) { const ri = r[i] * wk; b[i] += ri * y[k]; for (let j = i; j < n; j++) A[i][j] += ri * r[j]; } }
+  for (let i = 0; i < n; i++) { for (let j = 0; j < i; j++) A[i][j] = A[j][i]; if (i) A[i][i] += lam; }
+  return solve(A, b);
+}
+const dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
+
+/* ---------- feature extraction ---------- */
+// MediaPipe indices: right eye (image-left) 33 outer,133 inner, lids 159/145, iris 468; left eye (image-right) 362 inner,263 outer, lids 386/374, iris 473
+const EYES = [{ a: 33, b: 133, up: 159, lo: 145, ir: 468 }, { a: 362, b: 263, up: 386, lo: 374, ir: 473 }];
+function eyeFeat(L, e, vw, vh) {
+  const P = i => [L[i].x * vw, L[i].y * vh], A = P(e.a), B = P(e.b), U = P(e.up), Lo = P(e.lo), I = P(e.ir);
+  const ax = [B[0] - A[0], B[1] - A[1]], w = Math.hypot(ax[0], ax[1]) || 1, ex = [ax[0] / w, ax[1] / w], ey = [-ex[1], ex[0]];
+  const mid = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], lid = [(U[0] + Lo[0]) / 2, (U[1] + Lo[1]) / 2];
+  const gap = Math.max(Math.hypot(U[0] - Lo[0], U[1] - Lo[1]), 1e-3);
+  const dm = [I[0] - mid[0], I[1] - mid[1]], dl = [I[0] - lid[0], I[1] - lid[1]];
+  const q = k => P(e.ir + k), dia = (Math.hypot(q(1)[0] - q(3)[0], q(1)[1] - q(3)[1]) + Math.hypot(q(2)[0] - q(4)[0], q(2)[1] - q(4)[1])) / 2 || 1;
+  return [dot(dm, ex) / w, dot(dm, ey) / w, dot(dl, ey) / gap, w, dm[0] / dia, dm[1] / dia, dia];
+}
+function rotAngles(m) { // column-major 4x4
+  const R = [[m[0], m[4], m[8]], [m[1], m[5], m[9]], [m[2], m[6], m[10]]];
+  return [Math.atan2(R[0][2], R[2][2]), Math.asin(Math.max(-1, Math.min(1, -R[1][2]))), Math.atan2(R[1][0], R[1][1])];
+}
+function extract(res) {
+  if (!res.faceLandmarks?.length) return null;
+  const L = res.faceLandmarks[0], vw = vid.videoWidth, vh = vid.videoHeight;
+  const bs = {}; (res.faceBlendshapes?.[0]?.categories || []).forEach(c => bs[c.categoryName] = c.score);
+  const blink = Math.max(bs.eyeBlinkLeft || 0, bs.eyeBlinkRight || 0);
+  const r = eyeFeat(L, EYES[0], vw, vh), l = eyeFeat(L, EYES[1], vw, vh);
+  const m = res.facialTransformationMatrixes?.[0]?.data;
+  const [yaw, pitch, roll] = m ? rotAngles(m) : [0, 0, 0];
+  const tx = m ? m[12] : 0, ty = m ? m[13] : 0, tz = m ? m[14] : 0;
+  const eye = [r[0], r[1], r[2], l[0], l[1], l[2]], lin = [r[4], r[5], l[4], l[5]], zd = 1.2 * vw / ((r[6] + l[6]) / 2);
+  return { eye, lin, head: [yaw, pitch, roll, tx / 10, ty / 10, tz / 100, zd], blink, L, bs };
+}
+function expand(f) { // eye poly-2 + head linear (no bias here)
+  const e = f.eye, out = [...e];
+  for (let i = 0; i < e.length; i++) for (let j = i; j < e.length; j++) out.push(e[i] * e[j]);
+  return out.concat(f.lin, f.head);
+}
+
+/* ---------- gaze model ---------- */
+class GazeModel {
+  constructor() { this.S = []; this.ok = false; }
+  add(f, x, y, w = 1, grp = -1) { this.S.push({ v: expand(f), x, y, w, g: grp }); }
+  prep() {
+    const n = this.S[0].v.length; this.mu = new Array(n).fill(0); this.sd = new Array(n).fill(0);
+    this.S.forEach(s => s.v.forEach((a, i) => this.mu[i] += a / this.S.length));
+    this.S.forEach(s => s.v.forEach((a, i) => this.sd[i] += (a - this.mu[i]) ** 2 / this.S.length));
+    this.sd = this.sd.map(v => Math.sqrt(v) || 1);
+  }
+  norm(v) { return [1, ...v.map((a, i) => (a - this.mu[i]) / this.sd[i])]; }
+  fit(lam, subset) {
+    const S = subset || this.S, X = S.map(s => this.norm(s.v)), w = S.map(s => s.w);
+    return { wx: ridge(X, S.map(s => s.x), w, lam), wy: ridge(X, S.map(s => s.y), w, lam) };
+  }
+  train(fast) {
+    this.prep();
+    // 1) pick lambda by leave-one-target-out cross validation
+    const groups = [...new Set(this.S.map(s => s.g).filter(g => g >= 0 && g < 100))];
+    let best = { lam: this.lam || 10, err: this.cvErr || 0 };
+    for (const lam of fast ? [] : [0.3, 1, 3, 10, 30, 100, 300]) {
+      let tot = 0, cnt = 0;
+      for (const g of groups) {
+        const tr = this.S.filter(s => s.g !== g), te = this.S.filter(s => s.g === g); if (!te.length) continue;
+        const m = this.fit(lam, tr);
+        const px = te.reduce((a, s) => a + this.predictWith(m, s.v)[0], 0) / te.length, py = te.reduce((a, s) => a + this.predictWith(m, s.v)[1], 0) / te.length;
+        tot += Math.hypot(px - te[0].x, py - te[0].y); cnt++;
+      }
+      if (cnt && tot / cnt < best.err) best = { lam, err: tot / cnt };
+    }
+    this.lam = best.lam; this.cvErr = best.err;
+    // 2) robust refit: drop samples with large residuals (blinks, saccade leakage), then refit
+    let m = this.fit(this.lam);
+    const res = this.S.map(s => { const p = this.predictWith(m, s.v); return Math.hypot(p[0] - s.x, p[1] - s.y); });
+    const cut = Math.max(median(res) * 2.5, 20);
+    const keep = this.S.filter((_, i) => res[i] <= cut);
+    if (keep.length > this.S.length * 0.6) m = this.fit(this.lam, keep);
+    this.m = m; this.kr = null; this.bias = [0, 0]; this.ok = true;
+    // residual kernel ridge (RBF) on top of the ridge model; kept only if cross-validation says it helps
+    this.g = 0.3 / this.S[0].v.length; if (!fast) this.krLam = this.cvKRR(keep);
+    if (this.krLam) this.kr = this.fitKRR(sub(keep, 300), this.krLam, m);
+    const hv = this.S.map(s => s.v.slice(-7)); this.hmu = hv[0].map((_, i) => hv.reduce((a, r) => a + r[i], 0) / hv.length);
+  }
+  predictWith(m, v, kr) { const z = this.norm(v), p = [dot(m.wx, z), dot(m.wy, z)]; if (kr) { const c = this.krr(z.slice(1), kr); p[0] += c[0]; p[1] += c[1]; } return p; }
+  krr(z, k) { let a = 0, b = 0; for (let i = 0; i < k.Z.length; i++) { let d = 0; const Zi = k.Z[i]; for (let j = 0; j < z.length; j++) { const t = z[j] - Zi[j]; d += t * t; } const w = Math.exp(-this.g * d); a += w * k.al[i][0]; b += w * k.al[i][1]; } return [a, b]; }
+  fitKRR(tr, lam, m) {
+    const Z = tr.map(s => this.norm(s.v).slice(1)), n = Z.length, K = [], R = [];
+    for (let i = 0; i < n; i++) { K.push(new Array(n)); for (let j = 0; j <= i; j++) { let d = 0; for (let t = 0; t < Z[i].length; t++) { const u = Z[i][t] - Z[j][t]; d += u * u; } K[i][j] = Math.exp(-this.g * d); } }
+    for (let i = 0; i < n; i++) { for (let j = i + 1; j < n; j++) K[i][j] = K[j][i]; K[i][i] += lam; const p = this.predictWith(m, tr[i].v); R.push([tr[i].x - p[0], tr[i].y - p[1]]); }
+    return { Z, al: solveM(K, R) };
+  }
+  cvKRR(S) {
+    const lams = [0.1, 1, 10], err = { base: 0 }; lams.forEach(l => err[l] = 0); let ok = 0;
+    for (let k = 0; k < 4; k++) {
+      const tr = S.filter(s => s.g % 4 !== k), te = S.filter(s => s.g >= 0 && s.g % 4 === k); if (!te.length || tr.length < 30) continue;
+      const m = this.fit(this.lam, tr), t2 = sub(tr, 260), E = kr => te.reduce((a, s) => { const p = this.predictWith(m, s.v, kr); return a + Math.hypot(p[0] - s.x, p[1] - s.y); }, 0) / te.length;
+      err.base += E(null); for (const l of lams) err[l] += E(this.fitKRR(t2, l, m)); ok++;
+    }
+    if (!ok) return null; const bl = lams.reduce((a, l) => err[l] < err[a] ? l : a, lams[0]);
+    return err[bl] < err.base * 0.97 ? bl : null;
+  }
+  predict(f) { const p = this.predictWith(this.m, expand(f), this.kr); return [p[0] - this.bias[0], p[1] - this.bias[1]]; }
+}
+
+/* ---------- app state ---------- */
+const model = new GazeModel();
+const fx = new OneEuro(), fy = new OneEuro();
+let landmarker, lastFeat = null, state = "idle", gaze = null, raw = null, fps = 0, showHeat = false, showLm = false;
+const log = [], heat = { cols: 64, rows: 36, a: new Float32Array(64 * 36) };
+const fix = { x: 0, y: 0, t0: 0, on: false, pts: [] };
+let target = null; // {x,y,r,label}
+
+const setState = s => { state = s; $("sState").textContent = s; $("bRecal").classList.toggle("hide", s !== "tracking"); $("bDrift").classList.toggle("hide", s !== "tracking"); $("bar").classList.toggle("dim", s !== "tracking" && s !== "idle"); };
+
+/* ---------- camera + landmarker ---------- */
+async function init() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 }, facingMode: "user" }, audio: false });
+  vid.srcObject = stream; await vid.play();
+  const fs = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+  const opts = d => ({ baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate: d },
+    runningMode: "VIDEO", numFaces: 1, outputFaceBlendshapes: true, outputFacialTransformationMatrixes: true,
+    minFaceDetectionConfidence: 0.6, minFacePresenceConfidence: 0.6, minTrackingConfidence: 0.6 });
+  try { landmarker = await FaceLandmarker.createFromOptions(fs, opts("GPU")); }
+  catch { landmarker = await FaceLandmarker.createFromOptions(fs, opts("CPU")); }
+}
+
+let lastVT = -1, fpsN = 0, fpsT = performance.now();
+function loop() {
+  if (landmarker && vid.readyState >= 2 && vid.currentTime !== lastVT) {
+    lastVT = vid.currentTime; const now = performance.now();
+    const f = extract(landmarker.detectForVideo(vid, now));
+    lastFeat = f; $("sFace").textContent = f ? (f.blink > 0.5 ? "blink" : "yes") : "NO";
+    if (f && model.ok && state === "tracking") onGaze(f, now);
+    if (++fpsN >= 20) { fps = fpsN * 1000 / (now - fpsT); fpsN = 0; fpsT = now; $("sFps").textContent = fps.toFixed(0); }
+  }
+  draw(); requestAnimationFrame(loop);
+}
+
+/* ---------- live gaze, filtering, fixation detection (I-VT) ---------- */
+function onGaze(f, now) {
+  const hd = f.head, hm = model.hmu; fix.off = Math.abs(hd[0] - hm[0]) > 0.2 || Math.abs(hd[1] - hm[1]) > 0.2 || Math.abs(hd[6] / hm[6] - 1) > 0.18;
+  if (f.blink > 0.45) return; // hold last estimate through blinks
+  let [x, y] = model.predict(f);
+  x = Math.min(Math.max(x, -50), W + 50); y = Math.min(Math.max(y, -50), H + 50);
+  raw = [x, y]; const t = now / 1000;
+  const gx = fx.f(x, t), gy = fy.f(y, t); gaze = [gx, gy];
+  $("sGaze").textContent = `${gx.toFixed(0)}, ${gy.toFixed(0)}`;
+  // velocity-threshold identification: 40 deg/s counts as saccade
+  const p = fix.pts; p.push([gx, gy, now]); while (p.length > 1 && now - p[0][2] > 120) p.shift();
+  const dt = (now - p[0][2]) / 1000, v = dt > 0.02 ? Math.hypot(gx - p[0][0], gy - p[0][1]) / pxPerDeg() / dt : 0;
+  if (v > 40) { fix.on = false; $("sFix").textContent = "saccade"; }
+  else { if (!fix.on) { fix.on = true; fix.t0 = now; } $("sFix").textContent = `${(now - fix.t0).toFixed(0)} ms`; }
+  const cx = Math.floor(gx / W * heat.cols), cy = Math.floor(gy / H * heat.rows);
+  if (cx >= 0 && cy >= 0 && cx < heat.cols && cy < heat.rows) heat.a[cy * heat.cols + cx] += 1;
+  log.push([Math.round(now), gx.toFixed(1), gy.toFixed(1), x.toFixed(1), y.toFixed(1), fix.on ? 1 : 0]); if (log.length > 2e5) log.shift();
+}
+
+/* ---------- calibration + validation ---------- */
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+async function dwellOn(px, py, label, onSample) {
+  const t0 = performance.now(); let n = 0;
+  for (;;) {
+    const e = performance.now() - t0, k = Math.max(0, 1 - e / 1900);
+    target = { x: px, y: py, r: 8 + 18 * k, label };
+    if (e > 800 && lastFeat && lastFeat.blink < 0.35) { onSample(lastFeat, e); n++; }
+    if (e > 1900) break; await sleep(16);
+  }
+  target = null; return n;
+}
+const CAL = [[.06, .06], [.5, .06], [.94, .06], [.06, .5], [.5, .5], [.94, .5], [.06, .94], [.5, .94], [.94, .94], [.28, .28], [.72, .28], [.28, .72], [.72, .72]];
+const VAL = [[.17, .5], [.83, .5], [.5, .17], [.5, .83], [.39, .61]];
+async function pursuit() { // smooth-pursuit pass: dense coverage incl. edges; labels lag-compensated
+  const T = 10000, t0 = performance.now(), tmp = []; let last = null;
+  const pos = s => [(.5 + .44 * Math.sin(4 * Math.PI * s)) * W, (.5 + .42 * Math.sin(6 * Math.PI * s + 1.2)) * H];
+  for (;;) {
+    const e = performance.now() - t0; if (e > T) break;
+    const [x, y] = pos(e / T); target = { x, y, r: 14, label: "" };
+    if (lastFeat && lastFeat !== last && lastFeat.blink < 0.35 && e > 600) { last = lastFeat; const [lx, ly] = pos(Math.max(0, e - 110) / T); tmp.push([lastFeat, lx, ly, Math.floor(e / T * 8)]); }
+    await sleep(8);
+  }
+  target = null; tmp.forEach(([f, x, y, g]) => model.add(f, x, y, 0.5, 100 + g));
+}
+async function calibrate() {
+  setState("calibrating"); $("center").classList.add("hide"); model.S.length = 0; model.ok = false; gaze = null; fx.reset(); fy.reset();
+  await sleep(500);
+  const order = shuffle(CAL.map((p, i) => [p, i]));
+  for (const [[fxr, fyr], gi] of order) {
+    const px = fxr * W, py = fyr * H; let got = 0, tries = 0, tmp = [];
+    while (got < 15 && tries++ < 3) { tmp = []; got = await dwellOn(px, py, "", f => tmp.push(f)); }
+    tmp.forEach(f => model.add(f, px, py, 1, gi));
+  }
+  await pursuit();
+  if (model.S.length < 60) return fail("Not enough valid frames: check lighting and that your face is visible.");
+  setState("training"); await sleep(30); model.train();
+  $("sCV").textContent = `${model.cvErr.toFixed(0)} px (${(model.cvErr / pxPerDeg()).toFixed(1)}°)${model.kr ? " +KRR" : ""}`;
+  // independent validation on unseen targets
+  setState("validating"); const errs = [];
+  for (const [a, b] of shuffle([...VAL])) {
+    const px = a * W, py = b * H, ps = [];
+    await dwellOn(px, py, "", f => ps.push(model.predict(f)));
+    if (ps.length > 5) errs.push(Math.hypot(median(ps.map(p => p[0])) - px, median(ps.map(p => p[1])) - py));
+  }
+  if (errs.length) { const m = errs.reduce((a, b) => a + b) / errs.length; $("sVal").textContent = `${m.toFixed(0)} px (${(m / pxPerDeg()).toFixed(1)}°)`; }
+  setState("tracking");
+}
+function fail(m) { setState("idle"); $("err").textContent = m; $("center").classList.remove("hide"); $("go").textContent = "Retry"; }
+
+async function driftFix() { // one-point re-centre: removes slow offset drift without full recalibration
+  setState("drift check"); const ps = [], px = W / 2, py = H / 2;
+  await dwellOn(px, py, "", f => ps.push(model.predict(f)));
+  if (ps.length > 8) { model.bias[0] += median(ps.map(p => p[0])) - px; model.bias[1] += median(ps.map(p => p[1])) - py; }
+  setState("tracking");
+}
+/* click-to-refine: the clicked point is almost certainly being looked at (WebGazer idea) */
+addEventListener("click", e => {
+  if (state !== "tracking" || !lastFeat || lastFeat.blink > 0.35 || e.target.closest("#panel,#msg,#bar")) return;
+  for (let i = 0; i < 3; i++) model.add(lastFeat, e.clientX, e.clientY, 1.5, -1);
+  model.train(true);
+});
+addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  if (k === "c" && landmarker) calibrate();
+  if (k === "h") showHeat = !showHeat;
+  if (k === "d" && model.ok && state === "tracking") driftFix();
+  if (k === "l") showLm = !showLm;
+  if (k === "e" && log.length) { const b = new Blob(["t_ms,x,y,raw_x,raw_y,fixating\n" + log.map(r => r.join(",")).join("\n")], { type: "text/csv" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "gaze.csv"; a.click(); }
+});
+
+/* ---------- rendering ---------- */
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  if (showHeat) {
+    const mx = Math.max(...heat.a, 1), cw = W / heat.cols, ch = H / heat.rows;
+    for (let r = 0; r < heat.rows; r++) for (let c = 0; c < heat.cols; c++) { const v = heat.a[r * heat.cols + c] / mx; if (v > 0.02) { ctx.fillStyle = `hsla(${200 - 200 * v},90%,55%,${0.15 + 0.6 * v})`; ctx.fillRect(c * cw, r * ch, cw + 1, ch + 1); } }
+  }
+  if (showLm && lastFeat) { ctx.fillStyle = "#4fd1c5"; const s = $("vid").getBoundingClientRect(); [468, 473, 33, 133, 362, 263].forEach(i => { const p = lastFeat.L[i]; ctx.fillRect(s.left + (1 - p.x) * s.width - 1, s.top + p.y * s.height - 1, 3, 3); }); }
+  if (target) {
+    ctx.beginPath(); ctx.arc(target.x, target.y, target.r, 0, 7); ctx.fillStyle = "#ff5252"; ctx.fill();
+    ctx.beginPath(); ctx.arc(target.x, target.y, 3, 0, 7); ctx.fillStyle = "#fff"; ctx.fill();
+  }
+  if (state === "tracking" && fix.off) { ctx.fillStyle = "#ff8a80"; ctx.font = "600 16px system-ui"; ctx.textAlign = "center"; ctx.fillText("Head moved from calibration pose: move back, or press D to drift-correct", W / 2, 30); }
+  if (gaze && state === "tracking" && pointerOn) {
+    const [x, y] = gaze, r = 14 + (fix.on ? Math.min((performance.now() - fix.t0) / 40, 26) : 0);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.strokeStyle = fix.on ? "#4fd1c5" : "#ffd54f"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+  }
+}
+
+let pointerOn = false;
+const setPointer = v => { pointerOn = v; $("bPtr").textContent = "Eye pointer: " + (v ? "on" : "off"); };
+$("bRecal").onclick = () => { if (landmarker) calibrate(); };
+$("bDrift").onclick = () => { if (model.ok && state === "tracking") driftFix(); };
+$("bPtr").onclick = () => { if (pointerOn) return setPointer(false); setPointer(true); if (!model.ok && state === "idle") enableTracking(); }; // first time: start + calibrate; later toggles never recalibrate
+
+/* ---------- start ---------- */
+async function enableTracking() {
+  $("err").textContent = ""; $("go").disabled = true; $("go").textContent = "Loading model…"; setState("loading");
+  try { if (!landmarker) { await init(); requestAnimationFrame(loop); } await calibrate(); }
+  catch (e) { fail("Could not start: " + (e.message || e) + ". Allow camera access and serve over https or localhost."); }
+  $("go").disabled = false;
+  if (!model.ok) setPointer(false);
+}
+$("go").onclick = () => { setPointer(true); enableTracking(); };
+</script>
+</body>
+</html>
