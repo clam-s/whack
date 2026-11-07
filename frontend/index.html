@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Capital One Dashboard | Accessibility & Voice Terminal</title>
+  <title>Capital One Dashboard | Accessibility & Voice Interface</title>
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -17,11 +17,11 @@
               deeperNavy: '#001e36',
               lightNavy: '#085a96',
               accent: '#d03027', // Capital One Red
-              bg: '#003a63',
+              bg: '#003860',
               cardBg: '#ffffff',
-              border: '#e2e8f0',
+              border: '#cbd5e1',
               textPrimary: '#0f172a',
-              textMuted: '#475569',
+              textMuted: '#334155', // High contrast WCAG AA compliant (>7:1 on white)
               green: '#15803d',
             }
           },
@@ -34,1020 +34,1518 @@
     };
   </script>
   <style>
-    /* WCAG Focus indicator */
+    /* WCAG Focus Indicators */
     :focus-visible {
-      outline: 2px solid #004879;
-      outline-offset: 2px;
+      outline: 3px solid #004879 !important;
+      outline-offset: 3px !important;
     }
+    
+    /* Reduced Motion Preference */
+    @media (prefers-reduced-motion: reduce) {
+      *, ::before, ::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    /* High Contrast Mode */
+    .high-contrast {
+      background-color: #000000 !important;
+      color: #ffffff !important;
+    }
+    .high-contrast header,
+    .high-contrast nav,
+    .high-contrast main,
+    .high-contrast footer,
+    .high-contrast section,
+    .high-contrast div.card {
+      background-color: #0a0a0a !important;
+      color: #ffffff !important;
+      border: 2px solid #ffffff !important;
+    }
+    .high-contrast a,
+    .high-contrast button {
+      border: 2px solid #ffff00 !important;
+      color: #ffffff !important;
+    }
+    .high-contrast button:hover,
+    .high-contrast button:focus {
+      background-color: #ffff00 !important;
+      color: #000000 !important;
+    }
+
     /* Scrollbars */
     ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
+      width: 8px;
+      height: 8px;
     }
     ::-webkit-scrollbar-track {
       background: #f1f5f9;
     }
     ::-webkit-scrollbar-thumb {
       background: #94a3b8;
-      border-radius: 3px;
+      border-radius: 4px;
     }
-    /* CreditWise circular gauge */
-    .gauge-circle {
-      stroke-dasharray: 283;
-      stroke-dashoffset: 70;
-      transform: rotate(-90deg);
-      transform-origin: 50% 50%;
-      transition: stroke-dashoffset 0.8s ease;
+
+    /* Screen Reader Only Utility */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+
+    /* Voice waves animation */
+    @keyframes wave {
+      0%, 100% { transform: scaleY(0.4); }
+      50% { transform: scaleY(1); }
     }
     .voice-bar {
       display: inline-block;
       width: 3px;
       height: 14px;
-      background-color: #ffffff;
+      background-color: currentColor;
       border-radius: 1px;
       animation: wave 1.2s ease-in-out infinite;
     }
-    @keyframes wave {
-      0%, 100% { transform: scaleY(0.4); }
-      50% { transform: scaleY(1); }
-    }
   </style>
 </head>
-<body class="bg-[#003860] text-slate-900 font-sans min-h-screen flex flex-col antialiased">
+<body class="bg-c1-bg text-c1-textPrimary font-sans min-h-screen flex flex-col antialiased selection:bg-c1-lightNavy selection:text-white">
 
-  <!-- ================= TOP CAPITAL ONE NAVBAR ================= -->
-  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-    <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+  <!-- ================= ACCESSIBILITY LIVE ANNOUNCER ================= -->
+  <div id="liveAnnouncer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- ================= SKIP TO CONTENT LINK ================= -->
+  <a href="#mainContent" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:p-3 focus:bg-white focus:text-c1-navy focus:font-bold focus:shadow-md focus:border-2 focus:border-c1-navy">
+    Skip to main content
+  </a>
+
+  <!-- ================= HEADER LANDMARK ================= -->
+  <header class="bg-white border-b border-slate-300 sticky top-0 z-30 shadow-xs" role="banner">
+    <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 min-h-[64px] flex flex-wrap items-center justify-between gap-3 py-2">
       
-      <!-- Capital One Logo -->
+      <!-- Brand Logo -->
       <div class="flex items-center space-x-3">
-        <a href="#" class="flex items-center focus:outline-none focus:ring-2 focus:ring-c1-navy rounded-xs" aria-label="Capital One Home">
+        <a href="#checking" id="brandLogoLink" class="flex items-center p-1 rounded-sm focus:outline-none min-h-[44px]" aria-label="Capital One Home - Navigate to Checking Dashboard">
           <svg class="h-8 w-auto" viewBox="0 0 280 65" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Capital One Logo">
-            <!-- Wordmark "Capital One" -->
             <text x="10" y="44" font-family="'Inter', sans-serif" font-weight="900" font-style="italic" font-size="34" fill="#004879" letter-spacing="-0.5">Capital</text>
             <text x="135" y="44" font-family="'Inter', sans-serif" font-weight="400" font-style="italic" font-size="34" fill="#004879">One</text>
-            <!-- Capital One iconic red swoosh -->
             <path d="M125 10 C155 12, 195 24, 215 36 C180 30, 140 22, 125 10 Z" fill="#D03027" />
           </svg>
         </a>
       </div>
 
-      <!-- Right Header Actions (Voice Assistant Quick Launcher, Need Help, Profile) -->
-      <div class="flex items-center space-x-4">
+      <!-- Header Tools & Accessible Voice Panel Trigger -->
+      <div class="flex items-center flex-wrap gap-2 sm:gap-3">
         
-        <!-- Live Voice Assistant Quick Trigger Button (Accessibility feature) -->
+        <!-- High Contrast Mode Toggle -->
         <button
-          id="toggleAssistantBtn"
-          class="inline-flex items-center space-x-2 px-3.5 py-2 bg-c1-navy hover:bg-c1-lightNavy text-white font-medium text-xs rounded-full shadow-sm transition active:scale-95 focus:ring-2 focus:ring-offset-2 focus:ring-c1-navy min-h-[40px]"
-          aria-label="Toggle Voice & Code Assistant Console"
-          aria-expanded="false"
+          id="highContrastToggle"
+          class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-100 text-c1-textMuted font-semibold text-xs min-h-[44px] transition"
+          aria-pressed="false"
+          aria-label="Toggle High Contrast Mode"
         >
-          <span id="voiceNavPulseDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+          <svg class="w-4 h-4 text-slate-700" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 010-12v12z" />
+          </svg>
+          <span class="hidden sm:inline">Contrast</span>
+        </button>
+
+        <!-- Voice Assistant Placeholder Button (Designed for Voice Layer - Step 3) -->
+        <button
+          id="voiceAssistantBtn"
+          class="inline-flex items-center space-x-2 px-3.5 py-2 bg-c1-navy hover:bg-c1-lightNavy text-white font-semibold text-xs rounded-full shadow-sm min-h-[44px] transition"
+          aria-expanded="false"
+          aria-controls="voiceAssistantDrawer"
+          aria-label="Open Voice Assistant Panel (State: Ready)"
+        >
+          <span id="voiceStatusIndicatorDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
           <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
-          <span class="font-semibold">Voice Assistant</span>
-          <span class="bg-c1-darkNavy/60 text-[10px] font-mono px-1.5 py-0.5 rounded-sm text-slate-200">Terminal</span>
+          <span>Voice Assistant</span>
+          <span id="voiceBadgeState" class="bg-c1-darkNavy text-[10px] font-mono px-1.5 py-0.5 rounded-sm text-slate-200">READY</span>
         </button>
 
-        <!-- Need Help -->
-        <a href="#help" class="hidden sm:flex items-center space-x-1.5 text-slate-700 hover:text-c1-navy text-sm font-medium focus:ring-2 focus:ring-c1-navy p-1 rounded-sm">
-          <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          <span>Need help?</span>
-        </a>
-
-        <!-- User Profile Pill "LP" -->
-        <button class="flex items-center space-x-1 focus:ring-2 focus:ring-c1-navy p-0.5 rounded-full" aria-label="Account profile menu">
-          <div class="w-9 h-9 rounded-full bg-c1-navy text-white font-bold text-xs flex items-center justify-center border-2 border-slate-100">
+        <!-- User Profile Avatar -->
+        <div class="flex items-center space-x-1 p-1">
+          <div class="w-9 h-9 rounded-full bg-c1-navy text-white font-bold text-xs flex items-center justify-center border-2 border-slate-200" title="Signed in as LP">
             LP
           </div>
-          <svg class="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
+        </div>
 
       </div>
     </div>
   </header>
 
-  <!-- ================= NOTIFICATION / STATUS STRIP ================= -->
-  <div id="statusNotification" class="hidden border-b px-4 py-2 text-xs flex items-center justify-between transition-all" role="alert" aria-live="polite">
-    <div class="flex items-center space-x-2 max-w-[1720px] mx-auto w-full">
-      <span id="notifIcon" class="w-4 h-4 shrink-0 font-bold">&bull;</span>
-      <span id="notifText" class="font-medium"></span>
-    </div>
-    <button id="closeNotifBtn" class="text-slate-500 hover:text-slate-800 text-sm font-bold px-2" aria-label="Close message">&times;</button>
-  </div>
-
-  <!-- ================= ACCESSIBLE VOICE & CODE DRAWER / MODAL ================= -->
+  <!-- ================= EMPTY VOICE ASSISTANT PANEL (STEP 3 SPEC) ================= -->
+  <!-- States: listening / thinking / confirming / done -->
   <aside
-    id="voiceConsoleDrawer"
-    class="bg-white border-b border-c1-darkNavy shadow-xl transition-all duration-300 overflow-hidden"
+    id="voiceAssistantDrawer"
+    class="bg-white border-b-2 border-c1-navy shadow-lg transition-all duration-300 overflow-hidden"
     style="max-height: 0px;"
-    aria-label="Voice Accessibility Console"
+    aria-label="Voice Assistant Layer (Ready for Integration)"
   >
     <div class="max-w-[1720px] mx-auto p-4 sm:p-6 space-y-4">
-      
-      <!-- Console Top Bar -->
-      <div class="flex flex-wrap items-center justify-between border-b border-slate-200 pb-3 gap-2">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
         <div class="flex items-center space-x-3">
-          <span class="w-2.5 h-6 bg-c1-navy rounded-xs"></span>
+          <div class="w-3 h-6 bg-c1-navy rounded-xs"></div>
           <div>
-            <div class="flex items-center space-x-2">
-              <h2 class="text-sm font-bold uppercase tracking-wider text-c1-navy">Accessibility Speech & Code Terminal</h2>
-              <span class="bg-emerald-100 text-emerald-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">WCAG 2.1 AA</span>
-            </div>
-            <p class="text-xs text-slate-500">Dictate commands (Web Speech API) &rarr; OpenRouter Node.js 22 &rarr; Docker sandbox execution</p>
+            <h2 class="text-sm font-bold uppercase tracking-wider text-c1-navy">Voice Assistant Layer (Reserved for Voice Integration)</h2>
+            <p class="text-xs text-c1-textMuted">Ready to receive mapped voice commands and trigger action functions.</p>
           </div>
         </div>
 
-        <div class="flex items-center space-x-2 text-xs">
-          <!-- Backend Status -->
-          <div class="flex items-center space-x-2 px-3 py-1 bg-slate-100 border border-slate-300 rounded-sm font-mono text-[11px]">
-            <span id="drawerStatusDot" class="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span id="drawerStatusLabel" class="text-slate-700 font-medium">READY</span>
-            <span class="text-slate-400">|</span>
-            <span class="text-slate-500 font-sans">http://127.0.0.1:3001</span>
+        <!-- Voice Assistant State Switcher (for previewing States) -->
+        <div class="flex items-center space-x-2">
+          <span class="text-xs font-semibold text-slate-500 uppercase text-[10px]">Preview State:</span>
+          <div class="inline-flex rounded-md shadow-xs" role="group">
+            <button id="setVoiceListening" class="px-2.5 py-1 text-xs border border-slate-300 rounded-l-md hover:bg-slate-100 font-medium">Listening</button>
+            <button id="setVoiceThinking" class="px-2.5 py-1 text-xs border-t border-b border-r border-slate-300 hover:bg-slate-100 font-medium">Thinking</button>
+            <button id="setVoiceConfirming" class="px-2.5 py-1 text-xs border-t border-b border-r border-slate-300 hover:bg-slate-100 font-medium">Confirming</button>
+            <button id="setVoiceDone" class="px-2.5 py-1 text-xs border-t border-b border-r border-slate-300 rounded-r-md hover:bg-slate-100 font-medium bg-slate-100 font-bold">Done</button>
           </div>
-
-          <button id="closeDrawerBtn" class="p-1.5 text-slate-400 hover:text-slate-700 rounded-xs" aria-label="Collapse Voice Console">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
+          <button id="closeVoiceDrawer" class="p-2 text-slate-500 hover:text-slate-800 rounded-md min-h-[44px]" aria-label="Close Voice Assistant Panel">&times;</button>
         </div>
       </div>
 
-      <!-- Input Row: Voice Button + Textarea -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        
-        <!-- Speech & Prompt Input (Column) -->
-        <div class="lg:col-span-5 space-y-3">
-          <div class="flex items-center justify-between text-xs">
-            <label for="transcriptInput" class="font-semibold text-slate-700 uppercase tracking-wider text-[11px]">Speech Transcript / Command</label>
-            <span id="charCountDisplay" class="font-mono text-slate-500 text-[11px]">0 / 8,000 bytes</span>
+      <!-- State Presentation Card -->
+      <div id="voiceStateContainer" class="p-4 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div id="voiceStateIcon" class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+            ✓
           </div>
-
-          <div class="relative">
-            <textarea
-              id="transcriptInput"
-              rows="3"
-              placeholder="Click 'Hold to talk' or type command (e.g. 'Calculate compound interest on $4,200 balance at 4.5% for 12 months')"
-              class="w-full p-3 border border-slate-300 rounded-sm text-xs sm:text-sm font-sans focus:ring-2 focus:ring-c1-navy focus:border-c1-navy"
-            ></textarea>
-            
-            <div id="listeningBadge" class="hidden absolute top-2 right-2 bg-c1-navy text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center space-x-1.5 shadow-sm">
-              <span class="voice-bar"></span>
-              <span class="voice-bar"></span>
-              <span class="voice-bar"></span>
-              <span>Listening...</span>
-            </div>
-          </div>
-
-          <!-- Quick Templates & Actions -->
-          <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span class="text-slate-500 font-semibold uppercase text-[10px]">Quick:</span>
-            <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Calculate total upcoming bills</button>
-            <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Print the first five square numbers</button>
-            <button class="quick-prompt px-2 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xs text-slate-700">Filter grocery spending from transactions</button>
-          </div>
-
-          <!-- Buttons -->
-          <div class="flex items-center space-x-2 pt-1">
-            <!-- Voice Dictation Button (44px min height for accessibility) -->
-            <button
-              id="voiceDictationBtn"
-              type="button"
-              class="flex-1 inline-flex items-center justify-center space-x-2 px-4 py-2.5 bg-c1-navy hover:bg-c1-lightNavy active:bg-c1-darkNavy text-white font-medium text-xs rounded-sm shadow-xs min-h-[44px] transition"
-            >
-              <svg id="micIconSvg" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-              </svg>
-              <span id="voiceDictationLabel">Hold to talk (or Space)</span>
-            </button>
-
-            <!-- Generate Code Button -->
-            <button
-              id="generateBtn"
-              type="button"
-              class="flex-1 inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 active:bg-black text-white font-medium text-xs rounded-sm shadow-xs min-h-[44px] transition disabled:opacity-50"
-            >
-              <svg id="generateSpinner" class="hidden w-3.5 h-3.5 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-              <span id="generateBtnText">Generate Code</span>
-            </button>
+          <div>
+            <div id="voiceStateTitle" class="text-sm font-bold text-slate-800">State: Done / Ready</div>
+            <div id="voiceStateDescription" class="text-xs text-slate-500">The assistant is idle and ready for voice input. No background network requests active.</div>
           </div>
         </div>
-
-        <!-- Generated Code Pane (Middle) -->
-        <div class="lg:col-span-4 bg-slate-900 rounded-sm border border-slate-700 flex flex-col min-h-[220px]">
-          <div class="bg-slate-950 px-3 py-1.5 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-300">
-            <span class="font-mono text-emerald-400 font-semibold">Generated JS (ESM)</span>
-            <div class="flex items-center space-x-2">
-              <span id="sentimentPill" class="hidden font-mono text-[9px] px-1.5 py-0.5 bg-c1-lightNavy text-white rounded-xs"></span>
-              <button id="copyScriptBtn" class="text-slate-400 hover:text-white underline text-[10px]">Copy</button>
-            </div>
-          </div>
-          <textarea
-            id="codeOutputArea"
-            class="flex-1 w-full bg-slate-900 text-slate-100 p-3 font-mono text-xs leading-relaxed resize-none focus:outline-none border-none placeholder:text-slate-600"
-            placeholder="// Generated Node.js 22 script will appear here..."
-          ></textarea>
-          <div class="bg-slate-950/80 px-3 py-1.5 border-t border-slate-800 flex items-center justify-between">
-            <span class="text-[10px] text-slate-400 font-mono">Sandbox: Docker (5s limit)</span>
-            <button
-              id="executeBtn"
-              class="px-3 py-1 bg-c1-green hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-[11px] rounded-xs shadow-xs min-h-[32px] inline-flex items-center space-x-1"
-            >
-              <svg id="executeSpinner" class="hidden w-3 h-3 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-              <span>Run Code</span>
-            </button>
-          </div>
+        <div class="text-right">
+          <span class="inline-flex items-center px-2 py-1 rounded text-xs font-mono bg-white border border-slate-300 text-slate-700">
+            Registry: 11 Actions Documented
+          </span>
         </div>
-
-        <!-- Terminal Execution Output (Right) -->
-        <div class="lg:col-span-3 bg-slate-950 rounded-sm border border-slate-800 flex flex-col min-h-[220px]">
-          <div class="bg-slate-900 px-3 py-1.5 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-300">
-            <span class="font-mono text-slate-200 font-semibold">Execution Output</span>
-            <div class="flex items-center space-x-1 font-mono text-[10px]">
-              <span id="exitBadge" class="px-1.5 py-0.2 bg-slate-800 text-slate-300 rounded-xs">exit: -</span>
-            </div>
-          </div>
-          <pre id="terminalOutput" class="flex-1 p-3 font-mono text-xs text-slate-200 overflow-auto whitespace-pre-wrap break-all leading-relaxed placeholder:text-slate-600">Output from Docker container will display here.</pre>
-          <div class="bg-slate-900/60 px-3 py-1 border-t border-slate-800 text-[10px] text-slate-400 flex justify-between font-mono">
-            <span id="runtimeLabel">Runtime: -</span>
-            <button id="clearTerminalBtn" class="hover:text-slate-200">Clear</button>
-          </div>
-        </div>
-
       </div>
-
     </div>
   </aside>
 
-  <!-- ================= MAIN CAPITAL ONE DASHBOARD CONTAINER ================= -->
-  <main class="flex-1 max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
-    
+  <!-- ================= GLOBAL NOTIFICATION BANNER ================= -->
+  <div id="notificationBanner" class="hidden border-b px-4 py-2.5 text-xs transition-all" role="alert" aria-live="assertive">
+    <div class="max-w-[1720px] mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <span id="notificationIcon" class="font-bold text-sm">&bull;</span>
+        <span id="notificationText" class="font-medium"></span>
+      </div>
+      <button id="dismissNotificationBtn" class="text-slate-600 hover:text-black font-bold p-1 text-sm min-h-[44px]" aria-label="Dismiss notification">&times;</button>
+    </div>
+  </div>
+
+  <!-- ================= MAIN LAYOUT CONTAINER ================= -->
+  <div class="flex-1 max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
-      <!-- ================= LEFT SIDEBAR (Dark Blue Navigation & CreditWise) ================= -->
-      <nav class="lg:col-span-3 xl:col-span-2 space-y-4" aria-label="Account Navigation">
+      <!-- ================= NAVIGATION LANDMARK (SIDEBAR) ================= -->
+      <nav class="lg:col-span-3 xl:col-span-2 space-y-4" role="navigation" aria-label="Accounts and Banking Navigation">
         
-        <!-- Account list items -->
-        <div class="space-y-1">
+        <!-- Account list buttons -->
+        <div class="space-y-1.5" role="menubar">
           
-          <!-- Checking... 0096 (Active Item) -->
-          <button class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md bg-[#0d548a] text-white font-medium text-sm border-l-4 border-white shadow-xs focus:ring-2 focus:ring-white min-h-[44px]">
-            <svg class="w-5 h-5 text-slate-100 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-            </svg>
+          <!-- Checking -->
+          <button
+            data-nav="checking"
+            class="nav-item w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-white font-medium text-sm transition min-h-[44px]"
+            role="menuitem"
+            aria-current="page"
+          >
+            <svg class="w-5 h-5 text-slate-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
             <span class="truncate">Checking... 0096</span>
           </button>
 
-          <!-- Savings... 3886 -->
-          <button class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]">
-            <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+          <!-- Savings -->
+          <button
+            data-nav="savings"
+            class="nav-item w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]"
+            role="menuitem"
+          >
+            <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <span class="truncate">Savings... 3886</span>
           </button>
 
-          <!-- Credit Cards... 9794 -->
-          <button class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]">
-            <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
+          <!-- Credit Cards -->
+          <button
+            data-nav="credit-cards"
+            class="nav-item w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]"
+            role="menuitem"
+          >
+            <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
             <span class="truncate">Credit Cards... 9794</span>
           </button>
 
-          <!-- Loans... 2284 -->
-          <button class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]">
-            <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
-            </svg>
+          <!-- Loans -->
+          <button
+            data-nav="loans"
+            class="nav-item w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]"
+            role="menuitem"
+          >
+            <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"/></svg>
             <span class="truncate">Loans... 2284</span>
           </button>
 
           <!-- Rewards & Deals -->
-          <button class="w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]">
-            <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-            </svg>
-            <span class="truncate">Rewards & Deals</span>
+          <button
+            data-nav="rewards"
+            class="nav-item w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]"
+            role="menuitem"
+          >
+            <svg class="w-5 h-5 text-slate-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
+            <span class="truncate">Rewards &amp; Deals</span>
           </button>
 
         </div>
 
         <!-- CreditWise Score Widget -->
-        <div class="bg-[#002f52] rounded-xl p-4 text-center border border-white/10 shadow-sm space-y-3">
-          <div class="text-xs font-semibold text-slate-200 tracking-wide uppercase">CreditWise</div>
-          
-          <!-- Circular Score Indicator -->
-          <div class="relative w-32 h-32 mx-auto flex items-center justify-center">
+        <div class="bg-c1-darkNavy rounded-xl p-4 text-center border border-white/10 shadow-sm space-y-3">
+          <div class="text-xs font-bold text-slate-200 tracking-wide uppercase">CreditWise</div>
+          <div class="relative w-28 h-28 mx-auto flex items-center justify-center">
             <svg class="w-full h-full" viewBox="0 0 100 100">
-              <!-- Background Circle -->
-              <circle cx="50" cy="50" r="45" fill="none" stroke="#004879" stroke-width="7" />
-              <!-- Score Gauge Circle (Green arc) -->
-              <circle cx="50" cy="50" r="45" fill="none" stroke="#10b981" stroke-width="7" stroke-linecap="round" class="gauge-circle" />
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#004879" stroke-width="7" />
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#10b981" stroke-width="7" stroke-dasharray="264" stroke-dashoffset="66" stroke-linecap="round" transform="rotate(-90 50 50)" />
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center text-white">
               <span class="text-2xl font-bold tracking-tight">790</span>
               <span class="text-[11px] text-emerald-400 font-medium">Excellent</span>
             </div>
           </div>
-
-          <div class="text-[11px] text-slate-300">
-            Updated: Nov 24, 2024
-          </div>
-
-          <a href="#creditwise" class="inline-block text-xs font-bold text-white hover:underline uppercase tracking-wider pt-1">
-            See Your Score &gt;
-          </a>
+          <div class="text-[11px] text-slate-300">Updated: Today</div>
         </div>
 
         <!-- Open New Account Button -->
-        <button class="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-md border border-white/20 text-white font-medium text-xs hover:bg-white/10 transition min-h-[44px]">
-          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
+        <button
+          data-nav="open-account"
+          class="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-md border border-white/30 text-white font-medium text-xs hover:bg-white/10 transition min-h-[44px]"
+        >
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
           <span>Open New Account</span>
         </button>
 
       </nav>
 
-      <!-- ================= CENTER COLUMN: My Balance & Recent Transactions ================= -->
-      <section class="lg:col-span-5 xl:col-span-6 space-y-5" aria-label="Account Overview">
+      <!-- ================= MAIN CONTENT LANDMARK ================= -->
+      <main id="mainContent" class="lg:col-span-9 xl:col-span-10 min-h-[550px]" role="main" tabindex="-1">
         
-        <!-- CARD: My Balance -->
-        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-sm font-bold text-slate-800 tracking-tight">My Balance</h2>
-            <button class="text-slate-400 hover:text-slate-600 p-1 rounded-sm" aria-label="Balance options">
-              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/></svg>
-            </button>
-          </div>
-
-          <div>
-            <div class="text-3xl sm:text-4xl font-extrabold text-[#004879] tracking-tight">$4,200.10</div>
-            <div class="text-xs text-slate-500 font-medium mt-0.5">Available Balance</div>
-          </div>
-
-          <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span class="text-slate-500 font-medium">Account Number &amp; Routing Number</span>
-            <a href="#details" class="font-bold text-[#004879] hover:underline uppercase tracking-wider text-[11px]">
-              Account Details &gt;
-            </a>
-          </div>
+        <!-- DYNAMIC VIEW INJECTION CONTAINER -->
+        <div id="viewContainer" class="space-y-5">
+          <!-- Views rendered by JavaScript based on state.currentPage -->
         </div>
 
-        <!-- CARD: Recent Transactions -->
-        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-sm font-bold text-slate-800 tracking-tight">Recent Transactions</h2>
-            <span class="text-xs text-slate-400">Past 30 days</span>
-          </div>
-
-          <!-- Transaction List -->
-          <div class="divide-y divide-slate-100 text-xs">
-            
-            <!-- Item: Spotify -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-xs shadow-2xs">
-                  <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Spotify</div>
-                  <div class="text-slate-500 text-[11px]">Bills &amp; Utilities</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-18.98</div>
-                <div class="text-slate-400 text-[11px]">Nov 10, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: Chick-Fil-A -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-red-600 flex items-center justify-center text-white font-bold text-sm">
-                  C
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Chick-Fil-A</div>
-                  <div class="text-slate-500 text-[11px]">Food &amp; Drink</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-20.40</div>
-                <div class="text-slate-400 text-[11px]">Nov 8, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: Netflix -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-red-700 flex items-center justify-center text-white font-black text-sm">
-                  N
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Netflix</div>
-                  <div class="text-slate-500 text-[11px]">Bills &amp; Utilities</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-9.96</div>
-                <div class="text-slate-400 text-[11px]">Nov 6, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: Hulu -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-emerald-400 flex items-center justify-center text-slate-900 font-black text-sm">
-                  h
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Hulu</div>
-                  <div class="text-slate-500 text-[11px]">Bills &amp; Utilities</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-8.98</div>
-                <div class="text-slate-400 text-[11px]">Nov 4, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: Walmart -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-sky-500 flex items-center justify-center text-amber-300 font-bold text-sm">
-                  &#10038;
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Walmart</div>
-                  <div class="text-slate-500 text-[11px]">Groceries</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-40.24</div>
-                <div class="text-slate-400 text-[11px]">Nov 3, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: McDonald's -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-amber-400 flex items-center justify-center text-red-600 font-black text-base">
-                  M
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">McDonald's</div>
-                  <div class="text-slate-500 text-[11px]">Food &amp; Drink</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-10.40</div>
-                <div class="text-slate-400 text-[11px]">Oct 31, 2024</div>
-              </div>
-            </div>
-
-            <!-- Item: Exxon -->
-            <div class="py-3 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-9 h-9 rounded-full bg-red-600 flex items-center justify-center text-white font-black text-xs">
-                  XX
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800 text-sm">Exxon</div>
-                  <div class="text-slate-500 text-[11px]">Transportation &amp; Fuel</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900 text-sm">-40.00</div>
-                <div class="text-slate-400 text-[11px]">Oct 28, 2024</div>
-              </div>
-            </div>
-
-          </div>
-
-          <div class="pt-2 text-right">
-            <a href="#transactions" class="text-xs font-bold text-[#004879] hover:underline uppercase tracking-wider">
-              View All &gt;
-            </a>
-          </div>
-        </div>
-
-      </section>
-
-      <!-- ================= RIGHT COLUMN: Upcoming Transactions, Banking Features, Spending ================= -->
-      <section class="lg:col-span-4 xl:col-span-4 space-y-5" aria-label="Financial Tools & Features">
-        
-        <!-- CARD: Upcoming Transactions -->
-        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-sm font-bold text-slate-800 tracking-tight">Upcoming Transactions</h2>
-            <span class="text-xs text-slate-400">Pending</span>
-          </div>
-
-          <div class="divide-y divide-slate-100 text-xs">
-            
-            <div class="py-2.5 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-8 h-8 rounded-full bg-sky-500 flex items-center justify-center text-amber-300 font-bold text-xs">
-                  &#10038;
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800">Walmart</div>
-                  <div class="text-slate-500 text-[11px]">Groceries</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900">-120.30</div>
-                <div class="text-slate-400 text-[11px]">Nov 16, 2024</div>
-              </div>
-            </div>
-
-            <div class="py-2.5 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-bold text-xs">
-                  C
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800">Chick-Fil-A</div>
-                  <div class="text-slate-500 text-[11px]">Food &amp; Drink</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900">-8.20</div>
-                <div class="text-slate-400 text-[11px]">Nov 14, 2024</div>
-              </div>
-            </div>
-
-            <div class="py-2.5 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-black text-[10px]">
-                  XX
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800">Exxon</div>
-                  <div class="text-slate-500 text-[11px]">Transportation &amp; Fuel</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900">-40.00</div>
-                <div class="text-slate-400 text-[11px]">Nov 11, 2024</div>
-              </div>
-            </div>
-
-            <div class="py-2.5 flex items-center justify-between">
-              <div class="flex items-center space-x-3">
-                <div class="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center text-red-600 font-bold text-sm">
-                  M
-                </div>
-                <div>
-                  <div class="font-bold text-slate-800">McDonald's</div>
-                  <div class="text-slate-500 text-[11px]">Food &amp; Drink</div>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="font-bold text-slate-900">-6.30</div>
-                <div class="text-slate-400 text-[11px]">Nov 11, 2024</div>
-              </div>
-            </div>
-
-          </div>
-
-          <div class="pt-1 text-right">
-            <a href="#upcoming" class="text-xs font-bold text-[#004879] hover:underline uppercase tracking-wider">
-              View All &gt;
-            </a>
-          </div>
-        </div>
-
-        <!-- CARD: Banking Features (Send Money, Transfer, Lock Card, Statements) -->
-        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-sm font-bold text-slate-800 tracking-tight">Banking Features</h2>
-            <button class="text-slate-400 hover:text-slate-600 p-1" aria-label="Feature options">
-              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/></svg>
-            </button>
-          </div>
-
-          <div class="grid grid-cols-4 gap-2 text-center">
-            
-            <!-- Zelle -->
-            <button class="flex flex-col items-center justify-center p-2.5 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200 min-h-[50px] focus:ring-2 focus:ring-c1-navy">
-              <span class="font-black text-[#7414CA] text-sm tracking-tight">zelle</span>
-              <span class="text-[11px] text-slate-600 font-medium mt-1">Send Money</span>
-            </button>
-
-            <!-- Transfer -->
-            <button class="flex flex-col items-center justify-center p-2.5 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200 min-h-[50px] focus:ring-2 focus:ring-c1-navy">
-              <svg class="w-5 h-5 text-c1-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-              <span class="text-[11px] text-slate-600 font-medium mt-1">Transfer</span>
-            </button>
-
-            <!-- Lock Card -->
-            <button class="flex flex-col items-center justify-center p-2.5 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200 min-h-[50px] focus:ring-2 focus:ring-c1-navy">
-              <svg class="w-5 h-5 text-c1-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-              <span class="text-[11px] text-slate-600 font-medium mt-1">Lock Card</span>
-            </button>
-
-            <!-- Statements -->
-            <button class="flex flex-col items-center justify-center p-2.5 rounded-lg hover:bg-slate-50 transition border border-transparent hover:border-slate-200 min-h-[50px] focus:ring-2 focus:ring-c1-navy">
-              <svg class="w-5 h-5 text-c1-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span class="text-[11px] text-slate-600 font-medium mt-1">Statements</span>
-            </button>
-
-          </div>
-
-          <div class="pt-1 text-right">
-            <a href="#features" class="text-xs font-bold text-[#004879] hover:underline uppercase tracking-wider">
-              View All &gt;
-            </a>
-          </div>
-        </div>
-
-        <!-- CARD: Spending -->
-        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-sm font-bold text-slate-800 tracking-tight">Spending</h2>
-            <button class="text-slate-400 hover:text-slate-600 p-1" aria-label="Spending options">
-              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/></svg>
-            </button>
-          </div>
-
-          <div class="space-y-4 text-xs">
-            
-            <!-- Money In -->
-            <div>
-              <div class="flex justify-between font-semibold text-slate-800 mb-1.5">
-                <span>Money In $3,995.47 <span class="text-slate-400 font-normal">of $6,447.00</span></span>
-              </div>
-              <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden" role="progressbar" aria-valuenow="62" aria-valuemin="0" aria-valuemax="100" aria-label="Money In Progress">
-                <div class="bg-emerald-500 h-full rounded-full" style="width: 62%;"></div>
-              </div>
-            </div>
-
-            <!-- Money Out -->
-            <div>
-              <div class="flex justify-between font-semibold text-slate-800 mb-1.5">
-                <span>Money Out $3,722.68</span>
-              </div>
-              <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden" role="progressbar" aria-valuenow="48" aria-valuemin="0" aria-valuemax="100" aria-label="Money Out Progress">
-                <div class="bg-c1-navy h-full rounded-full" style="width: 48%;"></div>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-
-      </section>
+      </main>
 
     </div>
+  </div>
 
-  </main>
+  <!-- ================= MONEY MOVEMENT CONFIRMATION MODAL ================= -->
+  <div
+    id="confirmationModal"
+    class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="confirmModalHeading"
+    aria-describedby="confirmModalSummary"
+  >
+    <div class="bg-white rounded-xl shadow-2xl border-2 border-c1-navy max-w-lg w-full p-6 space-y-5">
+      <div class="border-b border-slate-200 pb-3 flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-xl font-bold">
+          !
+        </div>
+        <div>
+          <h2 id="confirmModalHeading" class="text-base font-bold text-slate-900">Confirm Money Movement</h2>
+          <p class="text-xs text-c1-textMuted">Please review the transaction details carefully.</p>
+        </div>
+      </div>
 
-  <!-- ================= ACCESSIBLE LOGIC SCRIPT ================= -->
+      <div id="confirmModalSummary" class="text-sm font-semibold text-c1-navy bg-slate-50 p-3 rounded-md border border-slate-200">
+        <!-- Summary text injected here -->
+      </div>
+
+      <div id="confirmModalDetails" class="divide-y divide-slate-100 text-xs border border-slate-200 rounded-md overflow-hidden">
+        <!-- Key/value details injected here -->
+      </div>
+
+      <!-- Large Accessible YES / NO Buttons (Minimum 48px height) -->
+      <div class="flex flex-col sm:flex-row items-center gap-3 pt-2">
+        <button
+          id="confirmActionBtn"
+          type="button"
+          class="w-full sm:flex-1 py-3 px-5 bg-c1-green hover:bg-emerald-800 text-white font-bold text-sm rounded-md shadow-md min-h-[48px] transition active:scale-98"
+        >
+          Yes, Confirm Transaction
+        </button>
+        <button
+          id="cancelActionBtn"
+          type="button"
+          class="w-full sm:flex-1 py-3 px-5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-sm border-2 border-slate-300 rounded-md min-h-[48px] transition"
+        >
+          No, Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= FOOTER LANDMARK ================= -->
+  <footer class="bg-c1-darkNavy text-slate-300 border-t border-white/10 mt-auto py-4 px-4 text-center text-xs" role="contentinfo">
+    <div class="max-w-[1720px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span class="font-semibold text-white">Capital One Accessibility Dashboard &bull; WHACK 2026</span>
+      </div>
+      <div class="text-[11px] text-slate-300">
+        Demo with fictional data. Not affiliated with Capital One.
+      </div>
+    </div>
+  </footer>
+
+  <!-- ================= APP SCRIPT ================= -->
+  <script src="./actions.js"></script>
   <script>
-    (function () {
-      'use strict';
+    const store = window.C1Store;
+    window.appStore = store;
 
-      const backendUrl = 'http://127.0.0.1:3001';
-      let isListening = false;
-      let recognition = null;
-      let isBusy = false;
+    const {
+      getState,
+      subscribe,
+      navigateTo,
+      requestTransfer,
+      requestSendMoney,
+      confirmPendingAction,
+      cancelPendingAction,
+      toggleCardLock,
+      requestOpenAccount,
+      cancelUpcomingPayment,
+      toggleHighContrast,
+      clearNotification,
+      formatCurrency,
+      formatDate
+    } = store;
 
-      // Elements
-      const drawer = document.getElementById('voiceConsoleDrawer');
-      const toggleBtn = document.getElementById('toggleAssistantBtn');
-      const closeDrawerBtn = document.getElementById('closeDrawerBtn');
-      const voiceDictationBtn = document.getElementById('voiceDictationBtn');
-      const voiceDictationLabel = document.getElementById('voiceDictationLabel');
-      const micIconSvg = document.getElementById('micIconSvg');
-      const listeningBadge = document.getElementById('listeningBadge');
-      const transcriptInput = document.getElementById('transcriptInput');
-      const charCountDisplay = document.getElementById('charCountDisplay');
-      const generateBtn = document.getElementById('generateBtn');
-      const generateBtnText = document.getElementById('generateBtnText');
-      const generateSpinner = document.getElementById('generateSpinner');
-      const codeOutputArea = document.getElementById('codeOutputArea');
-      const sentimentPill = document.getElementById('sentimentPill');
-      const copyScriptBtn = document.getElementById('copyScriptBtn');
-      const executeBtn = document.getElementById('executeBtn');
-      const executeSpinner = document.getElementById('executeSpinner');
-      const terminalOutput = document.getElementById('terminalOutput');
-      const exitBadge = document.getElementById('exitBadge');
-      const runtimeLabel = document.getElementById('runtimeLabel');
-      const clearTerminalBtn = document.getElementById('clearTerminalBtn');
-      const statusNotification = document.getElementById('statusNotification');
-      const notifText = document.getElementById('notifText');
-      const notifIcon = document.getElementById('notifIcon');
-      const closeNotifBtn = document.getElementById('closeNotifBtn');
-      const drawerStatusDot = document.getElementById('drawerStatusDot');
-      const drawerStatusLabel = document.getElementById('drawerStatusLabel');
-      const voiceNavPulseDot = document.getElementById('voiceNavPulseDot');
+    // Elements
+    const viewContainer = document.getElementById('viewContainer');
+    const liveAnnouncer = document.getElementById('liveAnnouncer');
+    const notificationBanner = document.getElementById('notificationBanner');
+    const notificationIcon = document.getElementById('notificationIcon');
+    const notificationText = document.getElementById('notificationText');
+    const dismissNotificationBtn = document.getElementById('dismissNotificationBtn');
+    const highContrastToggle = document.getElementById('highContrastToggle');
+    const confirmationModal = document.getElementById('confirmationModal');
+    const confirmModalHeading = document.getElementById('confirmModalHeading');
+    const confirmModalSummary = document.getElementById('confirmModalSummary');
+    const confirmModalDetails = document.getElementById('confirmModalDetails');
+    const confirmActionBtn = document.getElementById('confirmActionBtn');
+    const cancelActionBtn = document.getElementById('cancelActionBtn');
 
-      // --- Drawer Open / Close Animation ---
-      let drawerOpen = true; // start open so user can immediately see speech & code
-      function updateDrawer() {
-        if (drawerOpen) {
-          drawer.style.maxHeight = '800px';
-          toggleBtn.setAttribute('aria-expanded', 'true');
+    // Voice Assistant Preview elements
+    const voiceAssistantBtn = document.getElementById('voiceAssistantBtn');
+    const voiceAssistantDrawer = document.getElementById('voiceAssistantDrawer');
+    const closeVoiceDrawer = document.getElementById('closeVoiceDrawer');
+    const voiceBadgeState = document.getElementById('voiceBadgeState');
+    const voiceStatusIndicatorDot = document.getElementById('voiceStatusIndicatorDot');
+    const voiceStateIcon = document.getElementById('voiceStateIcon');
+    const voiceStateTitle = document.getElementById('voiceStateTitle');
+    const voiceStateDescription = document.getElementById('voiceStateDescription');
+
+    // --- High Contrast Toggle ---
+    highContrastToggle.addEventListener('click', () => {
+      toggleHighContrast();
+    });
+
+    // --- Voice Assistant Panel Toggle (Preview) ---
+    let voiceDrawerOpen = false;
+    function updateVoiceDrawer() {
+      voiceAssistantDrawer.style.maxHeight = voiceDrawerOpen ? '400px' : '0px';
+      voiceAssistantBtn.setAttribute('aria-expanded', String(voiceDrawerOpen));
+    }
+    voiceAssistantBtn.addEventListener('click', () => {
+      voiceDrawerOpen = !voiceDrawerOpen;
+      updateVoiceDrawer();
+    });
+    closeVoiceDrawer.addEventListener('click', () => {
+      voiceDrawerOpen = false;
+      updateVoiceDrawer();
+    });
+
+    // Voice Assistant State Preview Controls (listening / thinking / confirming / done)
+    const voiceStates = {
+      listening: {
+        badge: 'LISTENING',
+        dotClass: 'bg-red-500 animate-ping',
+        icon: '<span class="voice-bar"></span><span class="voice-bar"></span><span class="voice-bar"></span>',
+        iconBg: 'bg-red-100 text-red-700',
+        title: 'State: Listening...',
+        desc: 'Microphone is capturing speech audio using Web Speech API.'
+      },
+      thinking: {
+        badge: 'THINKING',
+        dotClass: 'bg-amber-400 animate-pulse',
+        icon: '<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>',
+        iconBg: 'bg-amber-100 text-amber-800',
+        title: 'State: Thinking / Processing Intent',
+        desc: 'Identifying requested banking action and mapping parameters.'
+      },
+      confirming: {
+        badge: 'CONFIRMING',
+        dotClass: 'bg-blue-400 animate-pulse',
+        icon: '?',
+        iconBg: 'bg-blue-100 text-blue-800',
+        title: 'State: Awaiting Confirmation',
+        desc: 'Action prepared. Prompting user with large Yes/No accessible confirmation dialog.'
+      },
+      done: {
+        badge: 'READY',
+        dotClass: 'bg-emerald-400',
+        icon: '✓',
+        iconBg: 'bg-emerald-100 text-emerald-800',
+        title: 'State: Done / Ready',
+        desc: 'The assistant is idle and ready for voice input. No background network requests active.'
+      }
+    };
+
+    function setVoiceState(st) {
+      const cfg = voiceStates[st] || voiceStates.done;
+      voiceBadgeState.textContent = cfg.badge;
+      voiceStatusIndicatorDot.className = `w-2.5 h-2.5 rounded-full ${cfg.dotClass}`;
+      voiceStateIcon.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold ${cfg.iconBg}`;
+      voiceStateIcon.innerHTML = cfg.icon;
+      voiceStateTitle.textContent = cfg.title;
+      voiceStateDescription.textContent = cfg.desc;
+      voiceAssistantBtn.setAttribute('aria-label', `Voice Assistant Panel (${cfg.title})`);
+    }
+
+    document.getElementById('setVoiceListening').addEventListener('click', () => setVoiceState('listening'));
+    document.getElementById('setVoiceThinking').addEventListener('click', () => setVoiceState('thinking'));
+    document.getElementById('setVoiceConfirming').addEventListener('click', () => setVoiceState('confirming'));
+    document.getElementById('setVoiceDone').addEventListener('click', () => setVoiceState('done'));
+
+    // --- Confirmation Modal Controls ---
+    confirmActionBtn.addEventListener('click', () => {
+      confirmPendingAction();
+    });
+    cancelActionBtn.addEventListener('click', () => {
+      cancelPendingAction();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !confirmationModal.classList.contains('hidden')) {
+        cancelPendingAction();
+      }
+    });
+
+    // --- Notification Dismiss ---
+    dismissNotificationBtn.addEventListener('click', () => {
+      clearNotification();
+    });
+
+    // ========================================================================
+    // RENDER ROUTINES FOR ALL VIEWS
+    // ========================================================================
+
+    function renderView(state) {
+      const page = state.currentPage;
+
+      // Update Active Navigation Item styling
+      document.querySelectorAll('.nav-item').forEach((btn) => {
+        const target = btn.dataset.nav;
+        if (target === page) {
+          btn.className = 'nav-item w-full flex items-center space-x-3 px-3.5 py-3 rounded-md bg-[#0d548a] text-white font-bold text-sm border-l-4 border-white shadow-xs min-h-[44px]';
+          btn.setAttribute('aria-current', 'page');
         } else {
-          drawer.style.maxHeight = '0px';
-          toggleBtn.setAttribute('aria-expanded', 'false');
+          btn.className = 'nav-item w-full flex items-center space-x-3 px-3.5 py-3 rounded-md text-slate-200 hover:bg-[#074776] hover:text-white font-medium text-sm transition min-h-[44px]';
+          btn.removeAttribute('aria-current');
         }
-      }
-      updateDrawer();
-
-      toggleBtn.addEventListener('click', () => {
-        drawerOpen = !drawerOpen;
-        updateDrawer();
-        if (drawerOpen) transcriptInput.focus();
       });
 
-      closeDrawerBtn.addEventListener('click', () => {
-        drawerOpen = false;
-        updateDrawer();
-      });
-
-      // --- Notification banner ---
-      function notify(msg, type = 'info') {
-        notifText.textContent = msg;
-        statusNotification.classList.remove('hidden', 'bg-red-50', 'text-red-900', 'border-red-200', 'bg-emerald-50', 'text-emerald-900', 'border-emerald-200', 'bg-blue-50', 'text-blue-900', 'border-blue-200');
-
-        if (type === 'error') {
-          statusNotification.classList.add('bg-red-50', 'text-red-900', 'border-red-200');
-          notifIcon.textContent = '✕';
-        } else if (type === 'success') {
-          statusNotification.classList.add('bg-emerald-50', 'text-emerald-900', 'border-emerald-200');
-          notifIcon.textContent = '✓';
-        } else {
-          statusNotification.classList.add('bg-blue-50', 'text-blue-900', 'border-blue-200');
-          notifIcon.textContent = 'ℹ';
-        }
-      }
-      closeNotifBtn.addEventListener('click', () => statusNotification.classList.add('hidden'));
-
-      // --- Byte Tracker ---
-      function getBytes(str) {
-        return new TextEncoder().encode(str).length;
-      }
-
-      transcriptInput.addEventListener('input', () => {
-        const bytes = getBytes(transcriptInput.value);
-        charCountDisplay.textContent = `${bytes.toLocaleString()} / 8,000 bytes`;
-        if (bytes > 8000) charCountDisplay.className = 'font-mono text-red-600 font-bold text-[11px]';
-        else charCountDisplay.className = 'font-mono text-slate-500 text-[11px]';
-      });
-
-      // Quick prompts
-      document.querySelectorAll('.quick-prompt').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          transcriptInput.value = btn.textContent.trim();
-          transcriptInput.dispatchEvent(new Event('input'));
-          transcriptInput.focus();
-        });
-      });
-
-      // --- Web Speech API Transcriber ---
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-
-        let baseText = '';
-
-        recognition.onstart = () => {
-          isListening = true;
-          baseText = transcriptInput.value;
-          voiceDictationLabel.textContent = 'Release to stop';
-          listeningBadge.classList.remove('hidden');
-          voiceDictationBtn.classList.add('bg-red-600', 'hover:bg-red-700');
-          voiceNavPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-red-400 animate-ping';
-        };
-
-        recognition.onresult = (e) => {
-          let interim = '';
-          for (let i = e.resultIndex; i < e.results.length; ++i) {
-            const transcript = e.results[i][0].transcript;
-            if (e.results[i].isFinal) {
-              baseText += (baseText && !baseText.endsWith(' ') ? ' ' : '') + transcript;
-            } else {
-              interim += transcript;
-            }
-          }
-          transcriptInput.value = baseText + (interim ? ' ' + interim : '');
-          transcriptInput.dispatchEvent(new Event('input'));
-        };
-
-        recognition.onerror = (e) => {
-          notify(`Microphone warning: ${e.error}`, 'error');
-          stopVoice();
-        };
-
-        recognition.onend = () => {
-          stopVoice();
-        };
-
-        function startVoice() {
-          try {
-            recognition.start();
-          } catch {}
-        }
-
-        function stopVoice() {
-          isListening = false;
-          voiceDictationLabel.textContent = 'Hold to talk (or Space)';
-          listeningBadge.classList.add('hidden');
-          voiceDictationBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
-          voiceNavPulseDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
-          try { recognition.stop(); } catch {}
-        }
-
-        // Mouse / Touch hold to talk
-        voiceDictationBtn.addEventListener('mousedown', startVoice);
-        window.addEventListener('mouseup', () => { if (isListening) stopVoice(); });
-        voiceDictationBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startVoice(); });
-        voiceDictationBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopVoice(); });
-
-        // Spacebar hold to talk when not typing in an input
-        window.addEventListener('keydown', (e) => {
-          if (e.code === 'Space' && !['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) {
-            e.preventDefault();
-            if (!isListening) startVoice();
-          }
-        });
-        window.addEventListener('keyup', (e) => {
-          if (e.code === 'Space' && !['TEXTAREA', 'INPUT'].includes(document.activeElement.tagName)) {
-            e.preventDefault();
-            if (isListening) stopVoice();
-          }
-        });
+      // Update High Contrast Mode
+      if (state.highContrast) {
+        document.body.classList.add('high-contrast');
+        highContrastToggle.setAttribute('aria-pressed', 'true');
+        highContrastToggle.classList.add('bg-yellow-300', 'text-black', 'border-yellow-400');
       } else {
-        voiceDictationLabel.textContent = 'Dictation not supported in browser';
-        voiceDictationBtn.classList.add('opacity-60', 'cursor-not-allowed');
+        document.body.classList.remove('high-contrast');
+        highContrastToggle.setAttribute('aria-pressed', 'false');
+        highContrastToggle.classList.remove('bg-yellow-300', 'text-black', 'border-yellow-400');
       }
 
-      // --- Generate Code (POST /api/generate) ---
-      async function generateCode() {
-        const text = transcriptInput.value.trim();
-        if (!text) {
-          notify('Please enter a command or speak into the microphone.', 'error');
-          transcriptInput.focus();
-          return;
+      // Render Notification
+      if (state.notification) {
+        notificationText.textContent = state.notification.message;
+        notificationBanner.classList.remove('hidden', 'bg-red-100', 'text-red-900', 'border-red-300', 'bg-emerald-100', 'text-emerald-900', 'border-emerald-300', 'bg-blue-100', 'text-blue-900', 'border-blue-300');
+        if (state.notification.type === 'error') {
+          notificationBanner.classList.add('bg-red-100', 'text-red-900', 'border-red-300');
+          notificationIcon.textContent = '✕';
+        } else if (state.notification.type === 'success') {
+          notificationBanner.classList.add('bg-emerald-100', 'text-emerald-900', 'border-emerald-300');
+          notificationIcon.textContent = '✓';
+        } else {
+          notificationBanner.classList.add('bg-blue-100', 'text-blue-900', 'border-blue-300');
+          notificationIcon.textContent = 'ℹ';
         }
+      } else {
+        notificationBanner.classList.add('hidden');
+      }
 
-        if (isBusy) return;
-        isBusy = true;
-        generateBtn.disabled = true;
-        generateSpinner.classList.remove('hidden');
-        generateBtnText.textContent = 'Generating...';
-        drawerStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
-        drawerStatusLabel.textContent = 'GENERATING';
+      // Render Pending Confirmation Modal
+      if (state.pendingConfirmation) {
+        const conf = state.pendingConfirmation;
+        confirmModalHeading.textContent = conf.title;
+        confirmModalSummary.textContent = conf.summary;
+        confirmModalDetails.innerHTML = conf.details.map(d => `
+          <div class="py-2.5 px-3 flex justify-between">
+            <span class="text-slate-500 font-medium">${d.label}</span>
+            <span class="text-slate-900 font-bold">${d.value}</span>
+          </div>
+        `).join('');
+        confirmationModal.classList.remove('hidden');
+        confirmActionBtn.focus();
+      } else {
+        confirmationModal.classList.add('hidden');
+      }
 
-        const t0 = performance.now();
+      // Render Specific Page View HTML
+      switch (page) {
+        case 'checking':
+          renderCheckingView(state);
+          break;
+        case 'savings':
+          renderSavingsView(state);
+          break;
+        case 'credit-cards':
+          renderCreditCardsView(state);
+          break;
+        case 'loans':
+          renderLoansView(state);
+          break;
+        case 'rewards':
+          renderRewardsView(state);
+          break;
+        case 'account-details':
+          renderAccountDetailsView(state);
+          break;
+        case 'send-money':
+          renderSendMoneyView(state);
+          break;
+        case 'transfer':
+          renderTransferView(state);
+          break;
+        case 'lock-card':
+          renderLockCardView(state);
+          break;
+        case 'statements':
+          renderStatementsView(state);
+          break;
+        case 'open-account':
+          renderOpenAccountView(state);
+          break;
+        case 'upcoming-all':
+          renderUpcomingAllView(state);
+          break;
+        case 'recent-all':
+          renderRecentAllView(state);
+          break;
+        default:
+          renderCheckingView(state);
+      }
+
+      // Move focus to the primary heading of the new view and announce
+      setTimeout(() => {
+        const heading = viewContainer.querySelector('h1');
+        if (heading) {
+          heading.setAttribute('tabindex', '-1');
+          heading.focus();
+          liveAnnouncer.textContent = `Navigated to ${heading.textContent}`;
+        }
+      }, 50);
+    }
+
+    // --- Helper: Brand Logo Generator for Transactions ---
+    function getTxIcon(icon, desc) {
+      if (icon === 'spotify') return '<div class="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-xs">S</div>';
+      if (icon === 'chickfila') return '<div class="w-9 h-9 rounded-full bg-red-600 flex items-center justify-center text-white font-bold text-sm">C</div>';
+      if (icon === 'netflix') return '<div class="w-9 h-9 rounded-full bg-red-700 flex items-center justify-center text-white font-black text-sm">N</div>';
+      if (icon === 'hulu') return '<div class="w-9 h-9 rounded-full bg-emerald-400 flex items-center justify-center text-slate-900 font-bold text-sm">h</div>';
+      if (icon === 'walmart') return '<div class="w-9 h-9 rounded-full bg-sky-500 flex items-center justify-center text-amber-300 font-bold text-sm">✱</div>';
+      if (icon === 'mcdonalds') return '<div class="w-9 h-9 rounded-full bg-amber-400 flex items-center justify-center text-red-600 font-black text-base">M</div>';
+      if (icon === 'exxon') return '<div class="w-9 h-9 rounded-full bg-red-600 flex items-center justify-center text-white font-black text-xs">XX</div>';
+      if (icon === 'zelle') return '<div class="w-9 h-9 rounded-full bg-purple-600 flex items-center justify-center text-white font-bold text-xs">Z</div>';
+      return '<div class="w-9 h-9 rounded-full bg-c1-navy flex items-center justify-center text-white font-bold text-xs">$</div>';
+    }
+
+    // ------------------------------------------------------------------------
+    // 1. CHECKING DASHBOARD VIEW
+    // ------------------------------------------------------------------------
+    function renderCheckingView(state) {
+      const ch = state.accounts.checking;
+      const recentTx = state.transactions.slice(0, 7);
+      const upcomingTx = state.upcomingTransactions.slice(0, 4);
+
+      viewContainer.innerHTML = `
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          
+          <!-- Column 1: Balance & Recent Transactions -->
+          <div class="lg:col-span-7 space-y-5">
+            
+            <!-- Balance Card -->
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+              <div class="flex items-center justify-between">
+                <h1 class="text-sm font-bold text-slate-800 tracking-tight">My Balance &bull; ${ch.name} (${ch.number})</h1>
+                <button data-nav="account-details" class="text-xs font-bold text-c1-navy hover:underline uppercase tracking-wider min-h-[44px] flex items-center">
+                  Account Details &gt;
+                </button>
+              </div>
+
+              <div>
+                <div class="text-3xl sm:text-4xl font-extrabold text-c1-navy tracking-tight">${formatCurrency(ch.balance)}</div>
+                <div class="text-xs text-c1-textMuted font-medium mt-0.5">Available Balance</div>
+              </div>
+
+              <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span class="text-slate-600 font-medium">Routing Number: <code class="font-mono text-slate-800 font-bold">${ch.routingNumber}</code></span>
+                <div class="flex items-center space-x-2">
+                  <button data-nav="transfer" class="px-3 py-1.5 bg-c1-navy hover:bg-c1-lightNavy text-white font-semibold rounded-md min-h-[44px]">Transfer</button>
+                  <button data-nav="send-money" class="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white font-semibold rounded-md min-h-[44px]">Send Money</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Transactions Card -->
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+              <div class="flex items-center justify-between">
+                <h2 class="text-sm font-bold text-slate-800 tracking-tight">Recent Transactions</h2>
+                <button data-nav="recent-all" class="text-xs font-bold text-c1-navy hover:underline uppercase tracking-wider min-h-[44px] flex items-center">
+                  View All (${state.transactions.length}) &gt;
+                </button>
+              </div>
+
+              <div class="divide-y divide-slate-100 text-xs" role="list">
+                ${recentTx.map(t => `
+                  <div class="py-3 flex items-center justify-between" role="listitem">
+                    <div class="flex items-center space-x-3">
+                      ${getTxIcon(t.icon, t.description)}
+                      <div>
+                        <div class="font-bold text-slate-800 text-sm">${t.description}</div>
+                        <div class="text-slate-600 text-[11px]">${t.category}</div>
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <div class="font-bold text-sm ${t.amount < 0 ? 'text-slate-900' : 'text-emerald-700 font-extrabold'}">${formatCurrency(t.amount)}</div>
+                      <div class="text-slate-500 text-[11px]">${formatDate(t.date)}</div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Column 2: Upcoming, Banking Features, Spending -->
+          <div class="lg:col-span-5 space-y-5">
+            
+            <!-- Upcoming Transactions Card -->
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+              <div class="flex items-center justify-between">
+                <h2 class="text-sm font-bold text-slate-800 tracking-tight">Upcoming Transactions</h2>
+                <button data-nav="upcoming-all" class="text-xs font-bold text-c1-navy hover:underline uppercase tracking-wider min-h-[44px] flex items-center">
+                  View All (${state.upcomingTransactions.length}) &gt;
+                </button>
+              </div>
+
+              <div class="divide-y divide-slate-100 text-xs" role="list">
+                ${upcomingTx.map(u => `
+                  <div class="py-2.5 flex items-center justify-between" role="listitem">
+                    <div class="flex items-center space-x-3">
+                      ${getTxIcon(u.icon, u.description)}
+                      <div>
+                        <div class="font-bold text-slate-800">${u.description}</div>
+                        <div class="text-slate-600 text-[11px]">${u.category}</div>
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <div class="font-bold text-slate-900">${formatCurrency(u.amount)}</div>
+                      <div class="text-slate-500 text-[11px]">${formatDate(u.date)}</div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Banking Features Grid -->
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+              <div class="flex items-center justify-between">
+                <h2 class="text-sm font-bold text-slate-800 tracking-tight">Banking Features</h2>
+              </div>
+
+              <div class="grid grid-cols-4 gap-2 text-center">
+                <button data-nav="send-money" class="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-slate-50 transition border border-slate-200 min-h-[56px]">
+                  <span class="font-black text-[#7414CA] text-sm">zelle</span>
+                  <span class="text-[11px] text-slate-700 font-medium mt-1">Send Money</span>
+                </button>
+                <button data-nav="transfer" class="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-slate-50 transition border border-slate-200 min-h-[56px]">
+                  <svg class="w-5 h-5 text-c1-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                  <span class="text-[11px] text-slate-700 font-medium mt-1">Transfer</span>
+                </button>
+                <button data-nav="lock-card" class="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-slate-50 transition border border-slate-200 min-h-[56px]">
+                  <svg class="w-5 h-5 text-c1-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                  <span class="text-[11px] text-slate-700 font-medium mt-1">Lock Card</span>
+                </button>
+                <button data-nav="statements" class="flex flex-col items-center justify-center p-2 rounded-lg hover:bg-slate-50 transition border border-slate-200 min-h-[56px]">
+                  <svg class="w-5 h-5 text-c1-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                  <span class="text-[11px] text-slate-700 font-medium mt-1">Statements</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Spending Summary Card -->
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
+              <h2 class="text-sm font-bold text-slate-800 tracking-tight">Spending (Past 30 Days)</h2>
+              <div class="space-y-4 text-xs">
+                <div>
+                  <div class="flex justify-between font-semibold text-slate-800 mb-1.5">
+                    <span>Money In: <strong class="text-emerald-700">$2,450.00</strong></span>
+                  </div>
+                  <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden" role="progressbar" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100">
+                    <div class="bg-emerald-600 h-full rounded-full" style="width: 65%;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="flex justify-between font-semibold text-slate-800 mb-1.5">
+                    <span>Money Out: <strong class="text-c1-navy">$780.18</strong></span>
+                  </div>
+                  <div class="w-full h-3 bg-slate-100 rounded-full overflow-hidden" role="progressbar" aria-valuenow="32" aria-valuemin="0" aria-valuemax="100">
+                    <div class="bg-c1-navy h-full rounded-full" style="width: 32%;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      `;
+    }
+
+    // ------------------------------------------------------------------------
+    // 2. SAVINGS VIEW
+    // ------------------------------------------------------------------------
+    function renderSavingsView(state) {
+      const sav = state.accounts.savings;
+      const savTx = state.transactions.filter(t => t.accountId === 'savings');
+
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6">
+          <div class="flex flex-wrap items-center justify-between border-b border-slate-100 pb-4 gap-3">
+            <div>
+              <h1 class="text-xl font-extrabold text-c1-navy">${sav.name} (${sav.number})</h1>
+              <p class="text-xs text-c1-textMuted">High-yield savings with no fees or minimums.</p>
+            </div>
+            <button data-nav="transfer" class="px-4 py-2.5 bg-c1-navy hover:bg-c1-lightNavy text-white font-bold text-xs rounded-md shadow-xs min-h-[44px]">
+              + Deposit or Transfer In
+            </button>
+          </div>
+
+          <!-- Key Metrics -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="text-xs text-slate-600 font-semibold uppercase">Current Balance</div>
+              <div class="text-3xl font-extrabold text-c1-navy mt-1">${formatCurrency(sav.balance)}</div>
+            </div>
+            <div class="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <div class="text-xs text-emerald-800 font-semibold uppercase">Annual Percentage Yield</div>
+              <div class="text-3xl font-extrabold text-emerald-700 mt-1">${sav.apy}</div>
+            </div>
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="text-xs text-slate-600 font-semibold uppercase">Interest Earned YTD</div>
+              <div class="text-3xl font-extrabold text-slate-800 mt-1">$${sav.interestYTD.toFixed(2)}</div>
+            </div>
+          </div>
+
+          <!-- Savings Activity -->
+          <div class="space-y-3 pt-2">
+            <h2 class="text-sm font-bold text-slate-800">Savings Account History</h2>
+            <div class="divide-y divide-slate-100 text-xs border border-slate-200 rounded-lg overflow-hidden">
+              ${savTx.length ? savTx.map(t => `
+                <div class="py-3 px-4 flex items-center justify-between">
+                  <div>
+                    <div class="font-bold text-slate-800">${t.description}</div>
+                    <div class="text-slate-500 text-[11px]">${formatDate(t.date)}</div>
+                  </div>
+                  <div class="font-bold text-emerald-700 text-sm">+${formatCurrency(t.amount)}</div>
+                </div>
+              `).join('') : '<div class="p-4 text-center text-slate-500">No savings transactions yet.</div>'}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ------------------------------------------------------------------------
+    // 3. CREDIT CARDS VIEW
+    // ------------------------------------------------------------------------
+    function renderCreditCardsView(state) {
+      const card = state.accounts.credit;
+      const cardTx = state.transactions.filter(t => t.accountId === 'credit');
+
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6">
+          <div class="flex flex-wrap items-center justify-between border-b border-slate-100 pb-4 gap-3">
+            <div>
+              <div class="flex items-center space-x-2">
+                <h1 class="text-xl font-extrabold text-c1-navy">${card.name} (${card.number})</h1>
+                <span class="px-2 py-0.5 text-xs font-bold rounded-sm ${card.locked ? 'bg-red-100 text-red-800 border border-red-300' : 'bg-emerald-100 text-emerald-800 border border-emerald-300'}">
+                  ${card.locked ? 'LOCKED' : 'ACTIVE'}
+                </span>
+              </div>
+              <p class="text-xs text-c1-textMuted">Unlimited 2X miles on every purchase &bull; Variable APR: ${card.apr}</p>
+            </div>
+            
+            <button id="cardLockToggleBtn" class="px-4 py-2.5 font-bold text-xs rounded-md shadow-xs min-h-[44px] transition ${card.locked ? 'bg-emerald-700 hover:bg-emerald-800 text-white' : 'bg-red-700 hover:bg-red-800 text-white'}">
+              ${card.locked ? 'Unlock Card' : 'Lock This Card'}
+            </button>
+          </div>
+
+          <!-- Lock status banner if locked -->
+          ${card.locked ? `
+            <div class="p-3 bg-red-50 border-l-4 border-red-600 text-red-900 text-xs font-semibold rounded-sm">
+              Notice: This card is currently locked. New purchases and cash advances are blocked. Recurring bills will still be processed.
+            </div>
+          ` : ''}
+
+          <!-- Balances & Due Dates -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="text-xs text-slate-600 font-semibold uppercase">Current Balance Owed</div>
+              <div class="text-3xl font-extrabold text-slate-900 mt-1">${formatCurrency(card.balance)}</div>
+            </div>
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="text-xs text-slate-600 font-semibold uppercase">Available Credit</div>
+              <div class="text-3xl font-extrabold text-c1-navy mt-1">${formatCurrency(card.availableCredit)}</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">Credit Limit: $${card.creditLimit.toLocaleString()}</div>
+            </div>
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="text-xs text-slate-600 font-semibold uppercase">Next Payment Due</div>
+              <div class="text-2xl font-bold text-slate-800 mt-1">${formatDate(card.paymentDueDate)}</div>
+              <div class="text-[11px] text-slate-600 font-medium mt-0.5">Min Due: $${card.minPaymentDue.toFixed(2)}</div>
+            </div>
+          </div>
+
+          <!-- Card Transactions -->
+          <div class="space-y-3 pt-2">
+            <h2 class="text-sm font-bold text-slate-800">Recent Card Charges</h2>
+            <div class="divide-y divide-slate-100 text-xs border border-slate-200 rounded-lg overflow-hidden">
+              ${cardTx.map(t => `
+                <div class="py-3 px-4 flex items-center justify-between">
+                  <div>
+                    <div class="font-bold text-slate-800">${t.description}</div>
+                    <div class="text-slate-500 text-[11px]">${t.category} &bull; ${formatDate(t.date)}</div>
+                  </div>
+                  <div class="font-bold text-slate-900 text-sm">${formatCurrency(t.amount)}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('cardLockToggleBtn')?.addEventListener('click', () => {
+        toggleCardLock('credit');
+      });
+    }
+
+    // ------------------------------------------------------------------------
+    // 4. LOANS VIEW
+    // ------------------------------------------------------------------------
+    function renderLoansView(state) {
+      const loan = state.accounts.loans;
+
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6">
+          <div class="flex flex-wrap items-center justify-between border-b border-slate-100 pb-4 gap-3">
+            <div>
+              <h1 class="text-xl font-extrabold text-c1-navy">${loan.name} (${loan.number})</h1>
+              <p class="text-xs text-c1-textMuted">Fixed interest auto loan &bull; Original amount: $${loan.originalAmount.toLocaleString()}</p>
+            </div>
+            <button data-nav="transfer" class="px-4 py-2.5 bg-c1-navy hover:bg-c1-lightNavy text-white font-bold text-xs rounded-md shadow-xs min-h-[44px]">
+              Make a Loan Payment
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="text-xs text-slate-600 font-semibold uppercase">Remaining Principal</div>
+              <div class="text-3xl font-extrabold text-c1-navy mt-1">${formatCurrency(loan.balance)}</div>
+            </div>
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="text-xs text-slate-600 font-semibold uppercase">Monthly Payment</div>
+              <div class="text-3xl font-extrabold text-slate-800 mt-1">$${loan.monthlyPayment.toFixed(2)}</div>
+            </div>
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+              <div class="text-xs text-slate-600 font-semibold uppercase">Next Payment Due</div>
+              <div class="text-2xl font-bold text-slate-800 mt-1">${formatDate(loan.nextDueDate)}</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">Fixed Rate: ${loan.interestRate} &bull; ${loan.termMonthsRemaining} mos left</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ------------------------------------------------------------------------
+    // 5. REWARDS & DEALS VIEW
+    // ------------------------------------------------------------------------
+    function renderRewardsView(state) {
+      const rw = state.rewards;
+
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6">
+          <div class="border-b border-slate-100 pb-4">
+            <h1 class="text-xl font-extrabold text-c1-navy">Rewards &amp; Capital One Offers</h1>
+            <p class="text-xs text-c1-textMuted">Earn cash back and miles across thousands of retail partners.</p>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="p-5 bg-c1-darkNavy text-white rounded-xl space-y-2">
+              <div class="text-xs text-slate-300 font-semibold uppercase">Total Rewards Miles</div>
+              <div class="text-3xl sm:text-4xl font-extrabold text-white">${rw.miles.toLocaleString()} miles</div>
+              <div class="text-xs text-emerald-400 font-medium">Cash Equivalent: $${rw.cashEquivalent.toFixed(2)}</div>
+            </div>
+            <div class="p-5 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between">
+              <div>
+                <div class="text-xs text-slate-600 font-semibold uppercase">Reward Tier</div>
+                <div class="text-xl font-bold text-slate-900 mt-1">${rw.tier}</div>
+                <p class="text-xs text-slate-500 mt-1">Redeem for travel statement credits, gift cards, or cash transfers.</p>
+              </div>
+              <button data-nav="transfer" class="mt-3 py-2 px-4 bg-c1-navy text-white text-xs font-bold rounded-md hover:bg-c1-lightNavy min-h-[44px]">
+                Redeem Miles for Cash
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-3 pt-3">
+            <h2 class="text-sm font-bold text-slate-800">Featured Capital One Offers</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              ${rw.featuredDeals.map(d => `
+                <div class="p-3.5 border border-slate-200 rounded-lg flex items-center justify-between hover:border-c1-navy transition">
+                  <div>
+                    <div class="font-bold text-slate-900 text-sm">${d.merchant}</div>
+                    <div class="text-emerald-700 font-bold">${d.discount}</div>
+                    <div class="text-slate-400 text-[11px]">Expires ${formatDate(d.expires)}</div>
+                  </div>
+                  <button class="px-3 py-1.5 bg-slate-100 hover:bg-c1-navy hover:text-white font-bold text-slate-700 border border-slate-300 rounded-md min-h-[44px]">
+                    Activate Deal
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ------------------------------------------------------------------------
+    // 6. ACCOUNT DETAILS VIEW
+    // ------------------------------------------------------------------------
+    function renderAccountDetailsView(state) {
+      const ch = state.accounts.checking;
+      const sav = state.accounts.savings;
+
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6">
+          <div class="border-b border-slate-100 pb-4">
+            <h1 class="text-xl font-extrabold text-c1-navy">Account Details &amp; Routing Information</h1>
+            <p class="text-xs text-c1-textMuted">Official routing and account numbers for direct deposit and ACH transfers.</p>
+          </div>
+
+          <div class="space-y-4">
+            <div class="p-4 border border-slate-200 rounded-lg space-y-3">
+              <h2 class="text-sm font-bold text-slate-800">${ch.name}</h2>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span class="text-slate-500 font-medium">Full Account Number:</span>
+                  <div class="font-mono text-sm font-bold text-slate-800">${ch.fullNumber}</div>
+                </div>
+                <div>
+                  <span class="text-slate-500 font-medium">Routing Number (Electronic / ACH):</span>
+                  <div class="font-mono text-sm font-bold text-slate-800">${ch.routingNumber}</div>
+                </div>
+                <div>
+                  <span class="text-slate-500 font-medium">Opened Date:</span>
+                  <div class="text-slate-700 font-medium">${formatDate(ch.openedDate)}</div>
+                </div>
+                <div>
+                  <span class="text-slate-500 font-medium">Status:</span>
+                  <div class="text-emerald-700 font-bold">Active &bull; FDIC Insured</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 border border-slate-200 rounded-lg space-y-3">
+              <h2 class="text-sm font-bold text-slate-800">${sav.name}</h2>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span class="text-slate-500 font-medium">Full Account Number:</span>
+                  <div class="font-mono text-sm font-bold text-slate-800">${sav.fullNumber}</div>
+                </div>
+                <div>
+                  <span class="text-slate-500 font-medium">Routing Number (Electronic / ACH):</span>
+                  <div class="font-mono text-sm font-bold text-slate-800">${sav.routingNumber}</div>
+                </div>
+                <div>
+                  <span class="text-slate-500 font-medium">Status:</span>
+                  <div class="text-emerald-700 font-bold">Active &bull; FDIC Insured</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ------------------------------------------------------------------------
+    // 7. SEND MONEY (ZELLE) VIEW
+    // ------------------------------------------------------------------------
+    function renderSendMoneyView(state) {
+      const ch = state.accounts.checking;
+
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6 max-w-2xl mx-auto">
+          <div class="border-b border-slate-100 pb-4">
+            <div class="flex items-center space-x-2">
+              <span class="font-black text-[#7414CA] text-xl">zelle</span>
+              <h1 class="text-xl font-extrabold text-slate-900">Send Money with Zelle®</h1>
+            </div>
+            <p class="text-xs text-c1-textMuted mt-1">Send money directly from your ${ch.name} to friends & family in minutes.</p>
+          </div>
+
+          <form id="sendMoneyForm" class="space-y-4 text-xs" novalidate>
+            <div>
+              <label for="zelleRecipient" class="block font-bold text-slate-700 uppercase mb-1">Recipient (Name, Phone, or Email)</label>
+              <input
+                id="zelleRecipient"
+                type="text"
+                required
+                placeholder="e.g. Alex Smith, (555) 123-4567, or alex@example.com"
+                class="w-full p-3 border border-slate-300 rounded-md text-sm font-sans focus:ring-2 focus:ring-c1-navy min-h-[44px]"
+              />
+            </div>
+
+            <div>
+              <label for="zelleAmount" class="block font-bold text-slate-700 uppercase mb-1">Amount ($ USD)</label>
+              <input
+                id="zelleAmount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                placeholder="0.00"
+                class="w-full p-3 border border-slate-300 rounded-md text-base font-mono font-bold focus:ring-2 focus:ring-c1-navy min-h-[44px]"
+              />
+              <span class="text-[11px] text-slate-500 mt-1 block">Available balance in ${ch.name}: <strong>${formatCurrency(ch.balance)}</strong></span>
+            </div>
+
+            <div>
+              <label for="zelleNote" class="block font-bold text-slate-700 uppercase mb-1">Memo / Note (Optional)</label>
+              <input
+                id="zelleNote"
+                type="text"
+                placeholder="e.g. Dinner, Groceries, Rent share"
+                class="w-full p-3 border border-slate-300 rounded-md text-sm font-sans focus:ring-2 focus:ring-c1-navy min-h-[44px]"
+              />
+            </div>
+
+            <div class="pt-3">
+              <button
+                type="submit"
+                class="w-full py-3.5 px-4 bg-[#7414CA] hover:bg-[#600eb0] text-white font-bold text-sm rounded-md shadow-md min-h-[48px] transition"
+              >
+                Review Payment Details &gt;
+              </button>
+            </div>
+          </form>
+        </div>
+      `;
+
+      document.getElementById('sendMoneyForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const recipient = document.getElementById('zelleRecipient').value;
+        const amount = document.getElementById('zelleAmount').value;
+        const note = document.getElementById('zelleNote').value;
 
         try {
-          const res = await fetch(`${backendUrl}/api/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text }),
-          });
-
-          const elapsed = Math.round(performance.now() - t0);
-
-          if (!res.ok) {
-            let errorMsg = `HTTP ${res.status}`;
-            try {
-              const err = await res.json();
-              if (err.error) errorMsg = err.error + (err.message ? `: ${err.message}` : '');
-            } catch {}
-            throw new Error(errorMsg);
-          }
-
-          const data = await res.json();
-          if (data && typeof data.code === 'string') {
-            codeOutputArea.value = data.code;
-            if (data.responseCode) {
-              sentimentPill.textContent = data.responseCode;
-              sentimentPill.classList.remove('hidden');
-            }
-            drawerStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
-            drawerStatusLabel.textContent = 'READY';
-            notify(`Generated JavaScript (${elapsed} ms)${data.message ? ': ' + data.message : ''}`, 'success');
-          } else {
-            throw new Error('Server returned empty or invalid code object');
-          }
+          requestSendMoney(recipient, amount, note, 'checking');
         } catch (err) {
-          drawerStatusDot.className = 'w-2 h-2 rounded-full bg-red-500';
-          drawerStatusLabel.textContent = 'ERROR';
-          notify(err.message, 'error');
-        } finally {
-          isBusy = false;
-          generateBtn.disabled = false;
-          generateSpinner.classList.add('hidden');
-          generateBtnText.textContent = 'Generate Code';
+          store.setNotification(err.message, 'error');
         }
-      }
+      });
+    }
 
-      generateBtn.addEventListener('click', generateCode);
+    // ------------------------------------------------------------------------
+    // 8. TRANSFER VIEW
+    // ------------------------------------------------------------------------
+    function renderTransferView(state) {
+      const accs = Object.values(state.accounts);
 
-      // --- Execute Code (POST /api/execute) ---
-      async function executeCode() {
-        const code = codeOutputArea.value.trim();
-        if (!code) {
-          notify('Please generate code before executing.', 'error');
-          codeOutputArea.focus();
-          return;
-        }
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6 max-w-2xl mx-auto">
+          <div class="border-b border-slate-100 pb-4">
+            <h1 class="text-xl font-extrabold text-c1-navy">Transfer Money Between Accounts</h1>
+            <p class="text-xs text-c1-textMuted">Move funds instantly between your Capital One accounts with zero fees.</p>
+          </div>
 
-        if (isBusy) return;
-        isBusy = true;
-        executeBtn.disabled = true;
-        executeSpinner.classList.remove('hidden');
-        drawerStatusDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
-        drawerStatusLabel.textContent = 'RUNNING';
+          <form id="transferForm" class="space-y-4 text-xs" novalidate>
+            <div>
+              <label for="transferFrom" class="block font-bold text-slate-700 uppercase mb-1">From Account</label>
+              <select id="transferFrom" class="w-full p-3 border border-slate-300 rounded-md text-sm font-sans focus:ring-2 focus:ring-c1-navy min-h-[44px]">
+                ${accs.map(a => `<option value="${a.id}">${a.name} (${a.number}) - Available: ${formatCurrency(a.balance)}</option>`).join('')}
+              </select>
+            </div>
 
-        const t0 = performance.now();
+            <div>
+              <label for="transferTo" class="block font-bold text-slate-700 uppercase mb-1">To Account</label>
+              <select id="transferTo" class="w-full p-3 border border-slate-300 rounded-md text-sm font-sans focus:ring-2 focus:ring-c1-navy min-h-[44px]">
+                ${accs.map((a, i) => `<option value="${a.id}" ${i === 1 ? 'selected' : ''}>${a.name} (${a.number})</option>`).join('')}
+              </select>
+            </div>
+
+            <div>
+              <label for="transferAmount" class="block font-bold text-slate-700 uppercase mb-1">Transfer Amount ($ USD)</label>
+              <input
+                id="transferAmount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                placeholder="0.00"
+                class="w-full p-3 border border-slate-300 rounded-md text-base font-mono font-bold focus:ring-2 focus:ring-c1-navy min-h-[44px]"
+              />
+            </div>
+
+            <div class="pt-3">
+              <button
+                type="submit"
+                class="w-full py-3.5 px-4 bg-c1-navy hover:bg-c1-lightNavy text-white font-bold text-sm rounded-md shadow-md min-h-[48px] transition"
+              >
+                Review Transfer Details &gt;
+              </button>
+            </div>
+          </form>
+        </div>
+      `;
+
+      document.getElementById('transferForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const from = document.getElementById('transferFrom').value;
+        const to = document.getElementById('transferTo').value;
+        const amount = document.getElementById('transferAmount').value;
 
         try {
-          const res = await fetch(`${backendUrl}/api/execute`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code }),
-          });
-
-          const elapsed = Math.round(performance.now() - t0);
-          runtimeLabel.textContent = `Runtime: ${elapsed} ms`;
-
-          if (!res.ok) {
-            let errorMsg = `HTTP ${res.status}`;
-            try {
-              const err = await res.json();
-              if (err.error) errorMsg = err.error;
-            } catch {}
-            throw new Error(errorMsg);
-          }
-
-          const result = await res.json();
-          const stdout = result.stdout || '';
-          const stderr = result.stderr || '';
-          const exit = result.exitCode !== undefined ? result.exitCode : 0;
-
-          exitBadge.textContent = `exit: ${exit}`;
-          if (exit === 0) {
-            exitBadge.className = 'px-1.5 py-0.2 bg-emerald-800 text-emerald-200 rounded-xs font-bold';
-            terminalOutput.textContent = stdout || '(Execution returned no stdout)';
-            notify(`Executed successfully (exit 0) in ${elapsed} ms.`, 'success');
-          } else {
-            exitBadge.className = 'px-1.5 py-0.2 bg-red-800 text-red-200 rounded-xs font-bold';
-            terminalOutput.textContent = (stdout ? stdout + '\n' : '') + (stderr ? `[STDERR]:\n${stderr}` : '');
-            notify(`Completed with exit code ${exit}.`, 'error');
-          }
-
-          drawerStatusDot.className = 'w-2 h-2 rounded-full bg-emerald-500';
-          drawerStatusLabel.textContent = 'READY';
+          requestTransfer(from, to, amount);
         } catch (err) {
-          drawerStatusDot.className = 'w-2 h-2 rounded-full bg-red-500';
-          drawerStatusLabel.textContent = 'ERROR';
-          terminalOutput.textContent = `Execution failed:\n${err.message}`;
-          notify(err.message, 'error');
-        } finally {
-          isBusy = false;
-          executeBtn.disabled = false;
-          executeSpinner.classList.add('hidden');
+          store.setNotification(err.message, 'error');
         }
+      });
+    }
+
+    // ------------------------------------------------------------------------
+    // 9. LOCK CARD VIEW
+    // ------------------------------------------------------------------------
+    function renderLockCardView(state) {
+      const card = state.accounts.credit;
+
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6 max-w-2xl mx-auto">
+          <div class="border-b border-slate-100 pb-4">
+            <h1 class="text-xl font-extrabold text-c1-navy">Card Security &amp; Lock</h1>
+            <p class="text-xs text-c1-textMuted">Misplaced your card? Instantly lock it to prevent fraudulent charges.</p>
+          </div>
+
+          <div class="p-6 border-2 ${card.locked ? 'border-red-500 bg-red-50/50' : 'border-emerald-500 bg-emerald-50/50'} rounded-xl space-y-4 text-center">
+            <div class="w-16 h-16 rounded-full mx-auto flex items-center justify-center text-white ${card.locked ? 'bg-red-600' : 'bg-emerald-600'}">
+              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            </div>
+
+            <div>
+              <div class="text-lg font-bold text-slate-900">${card.name} (${card.number})</div>
+              <div class="text-sm font-extrabold uppercase mt-1 ${card.locked ? 'text-red-700' : 'text-emerald-700'}">
+                Status: Card is currently ${card.locked ? 'LOCKED' : 'UNLOCKED'}
+              </div>
+            </div>
+
+            <button
+              id="lockToggleBtnMain"
+              class="w-full py-4 px-6 font-bold text-sm text-white rounded-lg shadow-md min-h-[48px] transition ${card.locked ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-red-700 hover:bg-red-800'}"
+            >
+              ${card.locked ? 'Unlock This Card' : 'Lock This Card Immediately'}
+            </button>
+          </div>
+
+          <div class="text-xs space-y-2 text-slate-600 bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <div class="font-bold text-slate-800 uppercase text-[11px]">How Card Lock Works:</div>
+            <ul class="list-disc pl-5 space-y-1">
+              <li>Locks take effect instantly across all online and in-person card terminals.</li>
+              <li>Existing recurring subscriptions and bill payments will still be honored.</li>
+              <li>Returns and refund credits will continue to process smoothly.</li>
+              <li>You can unlock your card at any time with one click.</li>
+            </ul>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('lockToggleBtnMain')?.addEventListener('click', () => {
+        toggleCardLock('credit');
+      });
+    }
+
+    // ------------------------------------------------------------------------
+    // 10. STATEMENTS VIEW
+    // ------------------------------------------------------------------------
+    function renderStatementsView(state) {
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6">
+          <div class="border-b border-slate-100 pb-4">
+            <h1 class="text-xl font-extrabold text-c1-navy">Statements &amp; Tax Documents</h1>
+            <p class="text-xs text-c1-textMuted">View and download your monthly electronic PDF statements.</p>
+          </div>
+
+          <div class="divide-y divide-slate-100 text-xs border border-slate-200 rounded-lg overflow-hidden">
+            ${state.statements.map(s => `
+              <div class="py-3.5 px-4 flex items-center justify-between hover:bg-slate-50 transition">
+                <div class="flex items-center space-x-3">
+                  <div class="w-8 h-8 rounded-md bg-c1-navy text-white flex items-center justify-center font-bold text-xs">
+                    PDF
+                  </div>
+                  <div>
+                    <div class="font-bold text-slate-800 text-sm">${s.account} - ${s.month}</div>
+                    <div class="text-slate-500 text-[11px]">Generated on ${formatDate(s.date)} &bull; ${s.size}</div>
+                  </div>
+                </div>
+                <button
+                  onclick="alert('Downloading statement PDF for ${s.account} - ${s.month}')"
+                  class="px-3.5 py-1.5 bg-slate-100 hover:bg-c1-navy hover:text-white font-bold text-slate-700 border border-slate-300 rounded-md min-h-[44px]"
+                >
+                  Download PDF
+                </button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // ------------------------------------------------------------------------
+    // 11. OPEN NEW ACCOUNT VIEW
+    // ------------------------------------------------------------------------
+    function renderOpenAccountView(state) {
+      const ch = state.accounts.checking;
+
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6 max-w-2xl mx-auto">
+          <div class="border-b border-slate-100 pb-4">
+            <h1 class="text-xl font-extrabold text-c1-navy">Open a New Capital One Account</h1>
+            <p class="text-xs text-c1-textMuted">Add a new high-yield savings or checking account with zero monthly fees.</p>
+          </div>
+
+          <form id="openAccountForm" class="space-y-4 text-xs" novalidate>
+            <div>
+              <label for="accType" class="block font-bold text-slate-700 uppercase mb-1">Choose Account Type</label>
+              <select id="accType" class="w-full p-3 border border-slate-300 rounded-md text-sm font-sans focus:ring-2 focus:ring-c1-navy min-h-[44px]">
+                <option value="Savings">360 Performance Savings (4.25% APY)</option>
+                <option value="Checking">360 Checking (Fee-free debit & ATM access)</option>
+                <option value="Certificate of Deposit">360 CD (1 Year Fixed 4.50% APY)</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="accNickname" class="block font-bold text-slate-700 uppercase mb-1">Account Nickname (Optional)</label>
+              <input
+                id="accNickname"
+                type="text"
+                placeholder="e.g. Vacation Fund, Emergency Savings"
+                class="w-full p-3 border border-slate-300 rounded-md text-sm font-sans focus:ring-2 focus:ring-c1-navy min-h-[44px]"
+              />
+            </div>
+
+            <div>
+              <label for="initialDeposit" class="block font-bold text-slate-700 uppercase mb-1">Initial Funding Deposit ($ USD)</label>
+              <input
+                id="initialDeposit"
+                type="number"
+                step="0.01"
+                min="0"
+                value="100.00"
+                class="w-full p-3 border border-slate-300 rounded-md text-base font-mono font-bold focus:ring-2 focus:ring-c1-navy min-h-[44px]"
+              />
+              <span class="text-[11px] text-slate-500 mt-1 block">Funds will be drawn from ${ch.name} (Available: ${formatCurrency(ch.balance)})</span>
+            </div>
+
+            <div class="pt-3">
+              <button
+                type="submit"
+                class="w-full py-3.5 px-4 bg-c1-navy hover:bg-c1-lightNavy text-white font-bold text-sm rounded-md shadow-md min-h-[48px] transition"
+              >
+                Review &amp; Open Account &gt;
+              </button>
+            </div>
+          </form>
+        </div>
+      `;
+
+      document.getElementById('openAccountForm')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const type = document.getElementById('accType').value;
+        const name = document.getElementById('accNickname').value;
+        const dep = document.getElementById('initialDeposit').value;
+
+        try {
+          requestOpenAccount(type, dep, name);
+        } catch (err) {
+          store.setNotification(err.message, 'error');
+        }
+      });
+    }
+
+    // ------------------------------------------------------------------------
+    // 12. UPCOMING TRANSACTIONS - VIEW ALL
+    // ------------------------------------------------------------------------
+    function renderUpcomingAllView(state) {
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h1 class="text-xl font-extrabold text-c1-navy">All Upcoming &amp; Scheduled Transactions</h1>
+              <p class="text-xs text-c1-textMuted">Upcoming autopays, subscriptions, and scheduled transfers.</p>
+            </div>
+            <button data-nav="checking" class="text-xs font-bold text-c1-navy hover:underline uppercase min-h-[44px]">
+              &larr; Back to Dashboard
+            </button>
+          </div>
+
+          <div class="divide-y divide-slate-100 text-xs border border-slate-200 rounded-lg overflow-hidden">
+            ${state.upcomingTransactions.map(u => `
+              <div class="py-3.5 px-4 flex items-center justify-between hover:bg-slate-50 transition">
+                <div class="flex items-center space-x-3">
+                  ${getTxIcon(u.icon, u.description)}
+                  <div>
+                    <div class="font-bold text-slate-800 text-sm">${u.description}</div>
+                    <div class="text-slate-500 text-[11px]">${u.category} &bull; Scheduled for ${formatDate(u.date)}</div>
+                  </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                  <span class="font-bold text-slate-900 text-sm">${formatCurrency(u.amount)}</span>
+                  <button
+                    data-cancel-up="${u.id}"
+                    class="px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 border border-red-300 font-semibold rounded-md min-h-[44px]"
+                  >
+                    Cancel Payment
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      document.querySelectorAll('[data-cancel-up]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          cancelUpcomingPayment(btn.dataset.cancelUp);
+        });
+      });
+    }
+
+    // ------------------------------------------------------------------------
+    // 13. RECENT TRANSACTIONS - VIEW ALL
+    // ------------------------------------------------------------------------
+    function renderRecentAllView(state) {
+      viewContainer.innerHTML = `
+        <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-6 space-y-6">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div>
+              <h1 class="text-xl font-extrabold text-c1-navy">All Recent Transactions</h1>
+              <p class="text-xs text-c1-textMuted">Complete searchable transaction ledger across all your accounts.</p>
+            </div>
+            <button data-nav="checking" class="text-xs font-bold text-c1-navy hover:underline uppercase min-h-[44px]">
+              &larr; Back to Dashboard
+            </button>
+          </div>
+
+          <!-- Filter & Search Controls -->
+          <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs">
+            <input
+              id="txSearchInput"
+              type="text"
+              placeholder="Search by merchant, category, or amount..."
+              class="p-2 border border-slate-300 rounded-md font-sans text-xs w-full sm:w-72 min-h-[44px]"
+            />
+            <span class="text-slate-500 font-medium">Showing ${state.transactions.length} total entries</span>
+          </div>
+
+          <div id="txListTable" class="divide-y divide-slate-100 text-xs border border-slate-200 rounded-lg overflow-hidden">
+            ${state.transactions.map(t => `
+              <div class="py-3 px-4 flex items-center justify-between hover:bg-slate-50 transition">
+                <div class="flex items-center space-x-3">
+                  ${getTxIcon(t.icon, t.description)}
+                  <div>
+                    <div class="font-bold text-slate-800 text-sm">${t.description}</div>
+                    <div class="text-slate-500 text-[11px]">${t.category} &bull; Account: ${t.accountId}</div>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="font-bold text-sm ${t.amount < 0 ? 'text-slate-900' : 'text-emerald-700 font-extrabold'}">${formatCurrency(t.amount)}</div>
+                  <div class="text-slate-500 text-[11px]">${formatDate(t.date)}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      // Live search filter
+      document.getElementById('txSearchInput')?.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#txListTable > div');
+        rows.forEach(r => {
+          r.style.display = r.textContent.toLowerCase().includes(query) ? 'flex' : 'none';
+        });
+      });
+    }
+
+    // ========================================================================
+    // GLOBAL CLICK HANDLER FOR NAVIGATION BUTTONS
+    // ========================================================================
+    document.addEventListener('click', (e) => {
+      const navBtn = e.target.closest('[data-nav]');
+      if (navBtn) {
+        e.preventDefault();
+        const page = navBtn.dataset.nav;
+        navigateTo(page);
       }
+    });
 
-      executeBtn.addEventListener('click', executeCode);
+    // Brand logo returns to checking
+    document.getElementById('brandLogoLink')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      navigateTo('checking');
+    });
 
-      // Copy script
-      copyScriptBtn.addEventListener('click', async () => {
-        if (!codeOutputArea.value) return;
-        await navigator.clipboard.writeText(codeOutputArea.value);
-        copyScriptBtn.textContent = 'Copied!';
-        setTimeout(() => copyScriptBtn.textContent = 'Copy', 1500);
-      });
+    // ========================================================================
+    // STORE SUBSCRIPTION & INITIAL RENDER
+    // ========================================================================
+    subscribe((state) => {
+      renderView(state);
+    });
 
-      // Clear terminal
-      clearTerminalBtn.addEventListener('click', () => {
-        terminalOutput.textContent = 'Cleared.';
-        exitBadge.textContent = 'exit: -';
-        exitBadge.className = 'px-1.5 py-0.2 bg-slate-800 text-slate-300 rounded-xs';
-      });
-
-    })();
+    // Initial render
+    renderView(getState());
   </script>
 </body>
 </html>
