@@ -378,8 +378,9 @@ $("go").onclick = () => { setPointer(true); enableTracking(); };
 // iframe.contentWindow.recalibrateGaze() -- works even while the iframe itself is pointer-events:none.
 window.recalibrateGaze = () => { if (landmarker) calibrate(); else enableTracking(); };
 
-// When embedded (?embed=1), drop the opaque page background so the host dashboard shows through;
-// the tracker's own canvas/panel/bar remain visible and unaffected.
+// When embedded (?embed=1), drop the opaque page background so the host dashboard shows through,
+// and restyle the dev-tool-styled bar/panel/message box to match the Capital One dashboard instead
+// of floating a dark hacker-tool overlay on top of it.
 if (new URLSearchParams(location.search).get("embed") === "1") {
   // color-scheme:dark (set on :root above) makes Chrome paint a dark UA canvas color behind any
   // transparent area instead of truly showing through to the parent page -- clear it too, or the
@@ -387,6 +388,34 @@ if (new URLSearchParams(location.search).get("embed") === "1") {
   document.documentElement.style.colorScheme = "normal";
   document.documentElement.style.background = "transparent";
   document.body.style.background = "transparent";
+
+  const embedStyle = document.createElement("style");
+  embedStyle.textContent = `
+    /* Move the control bar off the dashboard's logo (top-left) and give it the dashboard's own
+       light, pill-button look instead of the standalone tool's dark glass panel. */
+    #bar { top: auto !important; bottom: 14px !important; left: 14px !important; gap: 10px; }
+    #bar button {
+      background: #ffffff; color: #004879; border: 1px solid #cbd5e1;
+      border-radius: 9999px; padding: 8px 16px; font-size: 12px; font-weight: 700;
+      box-shadow: 0 6px 16px -6px rgba(0, 30, 60, 0.25);
+    }
+    #bar button:hover { background: #f1f5f9; }
+    #panel {
+      top: auto !important; bottom: 64px !important; left: 14px !important;
+      background: rgba(255,255,255,0.96); border-color: #cbd5e1; color: #0f172a;
+      backdrop-filter: blur(10px);
+    }
+    #panel h1 { color: #004879; }
+    #panel .row { color: #334155; }
+    #panel .row b { color: #0f172a; }
+    #msg { background: rgba(255,255,255,0.97); border-color: #cbd5e1; color: #0f172a; }
+    #msg h2 { color: #004879; }
+    #msg p { color: #334155; }
+    #msg button { background: #004879; color: #ffffff; }
+    #msg button:hover { background: #085a96; }
+    #err { color: #b91c1c !important; }
+  `;
+  document.head.appendChild(embedStyle);
 }
 </script>
 </body>

@@ -149,6 +149,9 @@
       transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease !important;
       will-change: transform, box-shadow;
     }
+    /* .gaze-active-target is applied by the live eye tracking bridge (not a real :hover, since
+       synthetic gaze input never sets the browser's native hover state) so gaze lands the same
+       expansion mouse hover/focus already gets. */
     .hci-lens-active button:hover,
     .hci-lens-active button:focus,
     .hci-lens-active a:hover,
@@ -156,21 +159,29 @@
     .hci-lens-active [data-nav]:hover,
     .hci-lens-active [data-nav]:focus,
     .hci-lens-active .gaze-target:hover,
-    .hci-lens-active .gaze-target:focus-within {
-      transform: scale(1.05) translateY(-3px) !important;
+    .hci-lens-active .gaze-target:focus-within,
+    .hci-lens-active .gaze-active-target {
+      transform: scale(1.16) translateY(-7px) !important;
       /* Premium Apple VisionOS-inspired soft ambient depth & glass elevation */
-      box-shadow: 0 20px 35px -8px rgba(0, 30, 60, 0.18), 0 8px 16px -4px rgba(0, 30, 60, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.8) inset !important;
+      box-shadow: 0 26px 45px -10px rgba(0, 30, 60, 0.24), 0 10px 20px -4px rgba(0, 30, 60, 0.14), 0 0 0 1px rgba(255, 255, 255, 0.85) inset !important;
       z-index: 25 !important;
       position: relative !important;
     }
 
-    /* Gaze Dwell Ring Animation */
-    @keyframes dwellProgress {
-      from { stroke-dashoffset: 100; }
-      to { stroke-dashoffset: 0; }
+    /* Gaze Dwell-to-Click Ring: fills clockwise over the dwell duration set in JS
+       (GazeDwell.MS); on completion the dwell logic fires a real click(). */
+    #gazeDwellRing {
+      transition: stroke-dashoffset linear;
+      opacity: 0;
     }
-    .dwell-active circle.dwell-bar {
-      animation: dwellProgress 1.4s linear forwards;
+    #gazeDwellRing.filling { opacity: 1; }
+    @keyframes gazeDwellComplete {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.6); }
+      100% { transform: scale(1); opacity: 0; }
+    }
+    #gazeDwellRing.complete {
+      animation: gazeDwellComplete 0.35s ease-out forwards;
     }
   </style>
 </head>
@@ -549,11 +560,24 @@
     src="about:blank"
     class="hidden fixed inset-0 w-full h-full border-0 z-[70]"
   ></iframe>
-  <div
+  <!-- Gaze cursor: a small dot (color = fixating vs. saccading) plus a ring that fills over the
+       2s dwell period when gaze lands on something clickable -- dwelling it out acts as a click. -->
+  <svg
     id="gazeCursorDot"
-    class="hidden fixed z-[71] w-4 h-4 -ml-2 -mt-2 rounded-full border-2 border-amber-400 bg-amber-400/30 pointer-events-none transition-[left,top] duration-75 ease-out"
+    class="hidden fixed z-[71] pointer-events-none transition-[left,top] duration-100 ease-out"
+    width="44" height="44" viewBox="0 0 44 44"
+    style="margin-left:-22px; margin-top:-22px;"
     aria-hidden="true"
-  ></div>
+  >
+    <circle cx="22" cy="22" r="17" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="2" />
+    <circle
+      id="gazeDwellRing"
+      cx="22" cy="22" r="17" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round"
+      stroke-dasharray="106.8" stroke-dashoffset="106.8"
+      transform="rotate(-90 22 22)"
+    />
+    <circle id="gazeCursorCore" cx="22" cy="22" r="4" fill="#fbbf24" />
+  </svg>
 
   <!-- ================= APPLE-STYLE HOVER TEXT & GAZE MAGNIFIER HUD ================= -->
   <aside
@@ -686,12 +710,60 @@
     // Same-origin iframe, so the tracker calls window.parent.__onExternalGaze / __onTrackerState
     // directly instead of postMessage. See the iframe element above for the click-through rationale.
     let liveEyeTrackingActive = false;
-    let lastGazeTarget = null;
+    // Hover target: the broader set the mouse-driven magnifier already understands (drives only
+    // the HUD text, via a dispatched mouseover -- never scaled up).
+    let hoverTarget = null, pendingHoverTarget = null, pendingHoverSince = 0;
+    // Expand/dwell target: real clickable controls only. This is the ONE thing that gets the
+    // Fitts' Law scale-up and the thing dwell-to-click acts on -- same element, same settle timer,
+    // so "the button that grows" and "the button a 2s gaze clicks" are never out of sync.
+    let expandTarget = null, pendingExpandTarget = null, pendingExpandSince = 0;
+    let dwellTimer = null;
     const liveEyeTrackingToggle = document.getElementById('liveEyeTrackingToggle');
     const liveEyeTrackingBadge = document.getElementById('liveEyeTrackingBadge');
     const recalibrateEyeTrackingBtn = document.getElementById('recalibrateEyeTrackingBtn');
     const liveEyeTrackingFrame = document.getElementById('liveEyeTrackingFrame');
     const gazeCursorDot = document.getElementById('gazeCursorDot');
+    const gazeCursorCore = document.getElementById('gazeCursorCore');
+    const gazeDwellRing = document.getElementById('gazeDwellRing');
+
+    // Raw gaze is jittery even while "settled" (head/webcam noise, not real intent), so a target
+    // must hold still under the gaze for GAZE_SETTLE_MS before it's acted on. Without this, the
+    // magnifier HUD and target expansion flickered between neighboring elements -- this was most
+    // of what read as "unreliable."
+    const GAZE_SETTLE_MS = 110;
+    const GAZE_DWELL_CLICK_MS = 2000;
+    const GAZE_DWELL_RING_CIRCUMFERENCE = 106.8; // 2 * PI * r(17), matches the SVG ring above
+    const GAZE_HOVER_SELECTOR = 'button, [data-nav], .card, h1, h2, a, [role="listitem"]';
+    const GAZE_CLICKABLE_SELECTOR = 'button, [data-nav], a';
+
+    function clearGazeExpansion() {
+      if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null; }
+      if (expandTarget) expandTarget.classList.remove('gaze-active-target');
+      expandTarget = null;
+      gazeDwellRing.classList.remove('filling', 'complete');
+      gazeDwellRing.style.transition = 'none';
+      gazeDwellRing.style.strokeDashoffset = String(GAZE_DWELL_RING_CIRCUMFERENCE);
+    }
+
+    function startGazeExpansion(target) {
+      expandTarget = target;
+      target.classList.add('gaze-active-target');
+      gazeDwellRing.classList.remove('complete');
+      gazeDwellRing.style.transition = 'none';
+      gazeDwellRing.style.strokeDashoffset = String(GAZE_DWELL_RING_CIRCUMFERENCE);
+      gazeDwellRing.getBoundingClientRect(); // force reflow so the instant reset above isn't animated
+      gazeDwellRing.style.transition = `stroke-dashoffset ${GAZE_DWELL_CLICK_MS}ms linear`;
+      gazeDwellRing.classList.add('filling');
+      gazeDwellRing.style.strokeDashoffset = '0';
+      dwellTimer = setTimeout(() => {
+        if (expandTarget !== target) return;
+        gazeDwellRing.classList.add('complete');
+        const label = (target.innerText || target.getAttribute('aria-label') || target.textContent || '').trim().slice(0, 80);
+        liveAnnouncer.textContent = `Selected by gaze dwell: ${label || 'control'}.`;
+        target.click();
+        clearGazeExpansion();
+      }, GAZE_DWELL_CLICK_MS);
+    }
 
     function setLiveEyeTracking(on) {
       liveEyeTrackingActive = on;
@@ -712,7 +784,10 @@
         liveEyeTrackingFrame.src = 'about:blank';
         gazeCursorDot.classList.add('hidden');
         recalibrateEyeTrackingBtn.classList.add('hidden');
-        lastGazeTarget = null;
+        hoverTarget = null;
+        pendingHoverTarget = null;
+        pendingExpandTarget = null;
+        clearGazeExpansion();
         liveAnnouncer.textContent = 'Live eye tracking stopped.';
       }
     }
@@ -743,14 +818,27 @@
       gazeCursorDot.classList.remove('hidden');
       gazeCursorDot.style.left = `${x}px`;
       gazeCursorDot.style.top = `${y}px`;
-      gazeCursorDot.style.borderColor = fixating ? '#34d399' : '#fbbf24';
+      gazeCursorCore.setAttribute('fill', fixating ? '#34d399' : '#fbbf24');
 
       if (!hciLensActive) return;
       const el = document.elementFromPoint(x, y);
-      const target = el ? el.closest('button, [data-nav], .card, h1, h2, a, [role="listitem"]') : null;
-      if (target && target !== lastGazeTarget) {
-        lastGazeTarget = target;
-        target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
+      const now = performance.now();
+
+      // Magnifier HUD text: the broader set (cards, headers, list items too), settled the same way
+      // so the HUD text doesn't flicker, but never scaled up.
+      const hoverCandidate = el ? el.closest(GAZE_HOVER_SELECTOR) : null;
+      if (hoverCandidate !== pendingHoverTarget) { pendingHoverTarget = hoverCandidate; pendingHoverSince = now; }
+      if (hoverCandidate !== hoverTarget && now - pendingHoverSince >= GAZE_SETTLE_MS) {
+        hoverTarget = hoverCandidate;
+        if (hoverTarget) hoverTarget.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
+      }
+
+      // Expansion + dwell-to-click: only real clickable controls (button, [data-nav], a).
+      const expandCandidate = el ? el.closest(GAZE_CLICKABLE_SELECTOR) : null;
+      if (expandCandidate !== pendingExpandTarget) { pendingExpandTarget = expandCandidate; pendingExpandSince = now; }
+      if (expandCandidate !== expandTarget && now - pendingExpandSince >= GAZE_SETTLE_MS) {
+        clearGazeExpansion();
+        if (expandCandidate) startGazeExpansion(expandCandidate);
       }
     };
 
