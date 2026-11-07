@@ -205,6 +205,30 @@
           <span id="hciLensBadge" class="bg-slate-200 text-[10px] font-mono px-1 py-0.5 rounded-xs text-slate-700">OFF</span>
         </button>
 
+        <!-- Live Webcam Eye Tracking: drives the Gaze Lens with real gaze instead of the mouse -->
+        <button
+          id="liveEyeTrackingToggle"
+          class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-100 text-c1-navy font-bold text-xs min-h-[44px] transition"
+          aria-pressed="false"
+          aria-label="Toggle live webcam eye tracking"
+          title="Experimental: use webcam gaze tracking in place of mouse hover to drive the Gaze Lens"
+        >
+          <svg class="w-4 h-4 text-c1-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          <span>Eye Tracking</span>
+          <span id="liveEyeTrackingBadge" class="bg-slate-200 text-[10px] font-mono px-1 py-0.5 rounded-xs text-slate-700">OFF</span>
+        </button>
+        <button
+          id="recalibrateEyeTrackingBtn"
+          class="hidden inline-flex items-center px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-100 text-c1-navy font-bold text-xs min-h-[44px] transition"
+          aria-label="Recalibrate eye tracking"
+          title="Re-run the webcam gaze calibration"
+        >
+          Recalibrate
+        </button>
+
         <!-- Global Text-to-Speech Account Reader Button -->
         <button
           id="speakAccountBtn"
@@ -458,6 +482,25 @@
     </div>
   </div>
 
+  <!-- ================= LIVE WEBCAM EYE TRACKING OVERLAY ================= -->
+  <!-- Runs the eyeTrackingV2 webcam tracker in-page (same origin) so its coordinate space matches
+       this document exactly. While calibrating, the iframe is click-through-disabled so its own
+       UI (Start/Recalibrate/dot targets) is reachable. Once it reaches the "tracking" state, the
+       iframe is switched to pointer-events:none so the dashboard underneath is fully usable again,
+       and gaze points arrive via window.__onExternalGaze(x, y, fixating) -- a direct same-origin
+       function call from the iframe's script, not postMessage. -->
+  <iframe
+    id="liveEyeTrackingFrame"
+    title="Live webcam eye tracking overlay"
+    src="about:blank"
+    class="hidden fixed inset-0 w-full h-full border-0 z-[70]"
+  ></iframe>
+  <div
+    id="gazeCursorDot"
+    class="hidden fixed z-[71] w-4 h-4 -ml-2 -mt-2 rounded-full border-2 border-amber-400 bg-amber-400/30 pointer-events-none transition-[left,top] duration-75 ease-out"
+    aria-hidden="true"
+  ></div>
+
   <!-- ================= APPLE-STYLE HOVER TEXT & GAZE MAGNIFIER HUD ================= -->
   <aside
     id="hciMagnifierHud"
@@ -584,6 +627,78 @@
 
     hciLensToggle.addEventListener('click', () => toggleHciLens());
     closeHudBtn?.addEventListener('click', () => toggleHciLens(false));
+
+    // --- Live Webcam Eye Tracking Bridge (frontend/eyeTracking/eyetracker_v4.html) ---
+    // Same-origin iframe, so the tracker calls window.parent.__onExternalGaze / __onTrackerState
+    // directly instead of postMessage. See the iframe element above for the click-through rationale.
+    let liveEyeTrackingActive = false;
+    let lastGazeTarget = null;
+    const liveEyeTrackingToggle = document.getElementById('liveEyeTrackingToggle');
+    const liveEyeTrackingBadge = document.getElementById('liveEyeTrackingBadge');
+    const recalibrateEyeTrackingBtn = document.getElementById('recalibrateEyeTrackingBtn');
+    const liveEyeTrackingFrame = document.getElementById('liveEyeTrackingFrame');
+    const gazeCursorDot = document.getElementById('gazeCursorDot');
+
+    function setLiveEyeTracking(on) {
+      liveEyeTrackingActive = on;
+      liveEyeTrackingToggle.setAttribute('aria-pressed', String(on));
+      if (on) {
+        liveEyeTrackingBadge.textContent = 'CALIBRATING';
+        liveEyeTrackingBadge.className = 'bg-amber-400 text-slate-950 font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-xs shadow-xs';
+        liveEyeTrackingFrame.src = 'eyeTracking/eyetracker_v4.html?embed=1';
+        liveEyeTrackingFrame.classList.remove('hidden');
+        liveEyeTrackingFrame.style.pointerEvents = 'auto'; // interactive until calibration finishes
+        recalibrateEyeTrackingBtn.classList.remove('hidden');
+        if (!hciLensActive) toggleHciLens(true);
+        liveAnnouncer.textContent = 'Live eye tracking starting. Use the overlay to start the camera and calibrate.';
+      } else {
+        liveEyeTrackingBadge.textContent = 'OFF';
+        liveEyeTrackingBadge.className = 'bg-slate-200 text-[10px] font-mono px-1 py-0.5 rounded-xs text-slate-700';
+        liveEyeTrackingFrame.classList.add('hidden');
+        liveEyeTrackingFrame.src = 'about:blank';
+        gazeCursorDot.classList.add('hidden');
+        recalibrateEyeTrackingBtn.classList.add('hidden');
+        lastGazeTarget = null;
+        liveAnnouncer.textContent = 'Live eye tracking stopped.';
+      }
+    }
+
+    liveEyeTrackingToggle.addEventListener('click', () => setLiveEyeTracking(!liveEyeTrackingActive));
+    recalibrateEyeTrackingBtn.addEventListener('click', () => {
+      liveEyeTrackingFrame.style.pointerEvents = 'auto';
+      liveEyeTrackingBadge.textContent = 'CALIBRATING';
+      liveEyeTrackingBadge.className = 'bg-amber-400 text-slate-950 font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-xs shadow-xs';
+      liveEyeTrackingFrame.contentWindow?.recalibrateGaze?.();
+    });
+
+    // Called by the iframe (same origin) whenever its calibration state machine changes.
+    window.__onTrackerState = function (state) {
+      if (!liveEyeTrackingActive) return;
+      if (state === 'tracking') {
+        liveEyeTrackingBadge.textContent = 'LIVE';
+        liveEyeTrackingBadge.className = 'bg-emerald-400 text-slate-950 font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-xs shadow-xs';
+        liveEyeTrackingFrame.style.pointerEvents = 'none'; // hand the page back to the dashboard
+        liveAnnouncer.textContent = 'Eye tracking calibrated. Gaze now drives the Gaze Lens.';
+      }
+    };
+
+    // Called by the iframe on every smoothed gaze sample: viewport-pixel coordinates, since the
+    // iframe covers the full viewport and shares this document's dimensions.
+    window.__onExternalGaze = function (x, y, fixating) {
+      if (!liveEyeTrackingActive) return;
+      gazeCursorDot.classList.remove('hidden');
+      gazeCursorDot.style.left = `${x}px`;
+      gazeCursorDot.style.top = `${y}px`;
+      gazeCursorDot.style.borderColor = fixating ? '#34d399' : '#fbbf24';
+
+      if (!hciLensActive) return;
+      const el = document.elementFromPoint(x, y);
+      const target = el ? el.closest('button, [data-nav], .card, h1, h2, a, [role="listitem"]') : null;
+      if (target && target !== lastGazeTarget) {
+        lastGazeTarget = target;
+        target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
+      }
+    };
 
     // Speech Synthesis Helper
     function speakText(text) {
