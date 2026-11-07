@@ -1,12 +1,23 @@
 import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
 import { openAccounts } from './accounts.mjs';
-import { generateCode, generationFallback, isAccountIntent } from './openrouter.mjs';
+import { classifyNavigation, generateCode, generationFallback, isAccountIntent, navigationFallback } from './openrouter.mjs';
 import { runJavaScript } from './runner.mjs';
 
 const { OPENROUTER_API_KEY, OPENROUTER_MODEL, FRONTEND_ORIGIN } = process.env;
 const executionEnabled = process.env.ENABLE_CODE_EXECUTION === 'true';
 const port = Number(process.env.PORT ?? 3001);
 const accounts = openAccounts(process.env.ACCOUNT_DB_PATH);
+const frontendFiles = new Map([
+  ['/', ['index.html', 'text/html']],
+  ['/index.html', ['index.html', 'text/html']],
+  ['/actions.js', ['actions.js', 'text/javascript']],
+  ['/linking.js', ['linking.js', 'text/javascript']],
+]);
+const frontendAssets = new Map();
+for (const [path, [file, type]] of frontendFiles) {
+  frontendAssets.set(path, { type, body: readFileSync(new URL('../frontend/' + file, import.meta.url)) });
+}
 let activeGenerations = 0;
 let activeAccountRequests = 0;
 let executing = false;
@@ -55,15 +66,22 @@ function readField(body, field, limit) {
 }
 
 const server = createServer(async (req, res) => {
+  const path = req.url?.split('?')[0];
+  const asset = frontendAssets.get(path);
+  if (asset && (req.method === 'GET' || req.method === 'HEAD')) {
+    res.writeHead(200, { 'Content-Type': asset.type + '; charset=utf-8' });
+    return res.end(req.method === 'GET' ? asset.body : undefined);
+  }
   const origin = req.headers.origin;
   res.setHeader('Vary', 'Origin');
-  if (origin && origin !== FRONTEND_ORIGIN && origin !== `http://127.0.0.1:${port}`) {
+  const localPort = server.address().port;
+  if (origin && origin !== FRONTEND_ORIGIN && origin !== `http://127.0.0.1:${localPort}` &&
+      origin !== `http://localhost:${localPort}`) {
     return send(res, 403, { error: 'Origin is not allowed' });
   }
   if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
 
-  const path = req.url?.split('?')[0];
-  if (path !== '/api/generate' && path !== '/api/execute' && path !== '/api/account') {
+  if (path !== '/api/generate' && path !== '/api/intent' && path !== '/api/execute' && path !== '/api/account') {
     return send(res, 404, { error: 'Route not found' });
   }
   if (req.method === 'OPTIONS') {
@@ -95,27 +113,30 @@ const server = createServer(async (req, res) => {
       }
     }
 
-    if (path === '/api/generate') {
+    if (path === '/api/generate' || path === '/api/intent') {
       const text = readField(await readBody(req), 'text', 8000);
+      const navigation = path === '/api/intent';
+      const fallback = navigation ? navigationFallback : generationFallback;
       if (!OPENROUTER_API_KEY || !OPENROUTER_MODEL) {
-        return send(res, 503, { ...generationFallback, error: 'OpenRouter is not configured' });
+        return send(res, 503, { ...fallback, error: 'OpenRouter is not configured' });
       }
       if (activeGenerations >= 4) throw new RequestError(429, 'Generation is busy');
       activeGenerations++;
       try {
-        const result = await generateCode(text, {
+        const handleRequest = navigation ? classifyNavigation : generateCode;
+        const result = await handleRequest(text, {
           apiKey: OPENROUTER_API_KEY,
           model: OPENROUTER_MODEL,
         });
-        if (result.code === null && !isAccountIntent(result.responseCode)) {
+        if (!navigation && result.code === null && !isAccountIntent(result.responseCode)) {
           return send(res, 502, { ...result, error: 'OpenRouter did not generate code' });
         }
         return send(res, 200, result);
       } catch (error) {
         const timedOut = error.name === 'TimeoutError';
         return send(res, timedOut ? 504 : 502, {
-          ...generationFallback,
-          error: timedOut ? 'Code generation timed out' : 'OpenRouter could not generate code',
+          ...fallback,
+          error: timedOut ? 'OpenRouter request timed out' : 'OpenRouter could not process the request',
         });
       } finally {
         activeGenerations--;
