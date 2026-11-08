@@ -11,7 +11,8 @@ const transcriptionModel = process.env.OPENROUTER_TRANSCRIPTION_MODEL || 'openai
 const { FISH_API_KEY } = process.env;
 const fishAsrModel = process.env.FISH_ASR_MODEL || 'transcribe-1-pro';
 const fishTtsModel = process.env.FISH_TTS_MODEL || 'drama-3';
-const fishTtsVoiceId = process.env.FISH_TTS_VOICE_ID?.trim() || 'b121b91872f54f04ba9f6da08b6b6253';
+const fishTtsVoiceId = process.env.FISH_TTS_VOICE_ID?.trim() || 'b121b91872f54f04ba9f6da08b8b6253';
+const fishTtsFallbackVoiceId = '933563129e564b19a115bedd57b7406a';
 const fishTtsDirection = process.env.FISH_TTS_DIRECTION?.trim() || '[warm]';
 const fishTtsSpeed = boundedNumber(process.env.FISH_TTS_SPEED, 1, 0.5, 2);
 const fishTtsVolume = boundedNumber(process.env.FISH_TTS_VOLUME, 0, -20, 20);
@@ -26,7 +27,6 @@ const frontendFiles = new Map([
   ['/index.html', ['index.html', 'text/html']],
   ['/actions.js', ['actions.js', 'text/javascript']],
   ['/linking.js', ['linking.js', 'text/javascript']],
-  ['/eyeTracking/eyetracker_v4.html', ['eyeTracking/eyetracker_v4.html', 'text/html']],
   ['/eyeTracking/eyetracker_v51.html', ['eyeTracking/eyetracker_v51.html', 'text/html']],
 ]);
 const frontendAssets = new Map();
@@ -51,8 +51,12 @@ function send(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-function sendAudio(res, audio) {
-  res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' });
+function sendAudio(res, { audio, fallbackVoice }) {
+  res.writeHead(200, {
+    'Content-Type': 'audio/mpeg',
+    'Cache-Control': 'no-store',
+    'X-Fish-Voice-Fallback': String(fallbackVoice),
+  });
   res.end(audio);
 }
 
@@ -82,7 +86,7 @@ async function transcribeWithFish(audio, format) {
 }
 
 async function synthesizeWithFish(text) {
-  const response = await fetch('https://api.fish.audio/v1/tts', {
+  const request = (voiceId) => fetch('https://api.fish.audio/v1/tts', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${FISH_API_KEY}`,
@@ -91,20 +95,36 @@ async function synthesizeWithFish(text) {
     },
     body: JSON.stringify({
       text: fishTtsDirection ? `${fishTtsDirection} ${text}` : text,
-      ...(fishTtsVoiceId ? { reference_id: fishTtsVoiceId } : {}),
+      reference_id: voiceId,
       prosody: { speed: fishTtsSpeed, volume: fishTtsVolume },
       format: 'mp3',
       normalize: true,
     }),
     signal: AbortSignal.timeout(30_000),
   });
+
+  let response = await request(fishTtsVoiceId);
+  let fallbackVoice = false;
   if (!response.ok) {
-    await response.body?.cancel();
-    throw new Error(`Fish Audio speech synthesis returned HTTP ${response.status}`);
+    const errorBody = await response.text();
+    if (response.status === 400 && /reference not found/i.test(errorBody) && fishTtsVoiceId !== fishTtsFallbackVoiceId) {
+      response = await request(fishTtsFallbackVoiceId);
+      fallbackVoice = response.ok;
+    }
+    if (!response.ok) {
+      const messages = {
+        400: 'Fish Audio rejected the voice or speech settings.',
+        401: 'Fish Audio rejected the API key.',
+        402: 'Fish Audio reports that the account has insufficient credit.',
+        403: 'Fish Audio denied access to this voice or API.',
+        429: 'Fish Audio rate limit reached.',
+      };
+      throw new Error(messages[response.status] || `Fish Audio speech synthesis returned HTTP ${response.status}`);
+    }
   }
   const audio = Buffer.from(await response.arrayBuffer());
   if (!audio.length || audio.length > 5 * 1024 * 1024) throw new Error('Fish Audio returned invalid audio');
-  return audio;
+  return { audio, fallbackVoice };
 }
 
 async function saveVoiceClip(audio, format) {
@@ -221,7 +241,7 @@ const server = createServer(async (req, res) => {
         return sendAudio(res, await synthesizeWithFish(text));
       } catch (error) {
         if (error.name === 'TimeoutError') throw new RequestError(504, 'Speech synthesis timed out');
-        throw new RequestError(502, 'Speech synthesis failed');
+        throw new RequestError(502, error.message || 'Speech synthesis failed');
       } finally {
         activeSpeechRequests--;
       }

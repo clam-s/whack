@@ -6,6 +6,7 @@
   const commandStatus = byId('voiceCommandStatus');
   const sendButton = byId('sendVoiceCommand');
   const microphone = byId('voiceMicrophone');
+  const testVoiceButton = byId('testAgentVoice');
   const voiceActivityLog = byId('voiceActivityLog');
   const drawer = byId('voiceAssistantDrawer');
   const accountDialog = byId('linkedAccountDialog');
@@ -41,9 +42,16 @@
     const messages = {
       requested: 'Requesting spoken acknowledgement.',
       playing: 'Spoken acknowledgement is playing.',
-      fallback: 'Fish speech unavailable; using browser speech instead.',
+      'voice-fallback': 'The selected Fish voice reference was unavailable; Fish spoke using the Sarah backup voice.',
     };
     if (messages[detail?.status]) logVoiceActivity(messages[detail.status]);
+    if (detail?.status === 'fallback') {
+      logVoiceActivity(`Fish speech could not play: ${detail.message || 'unknown error'}.`);
+    }
+  });
+  testVoiceButton?.addEventListener('click', () => {
+    logVoiceActivity('Starting the Fish voice check.');
+    void window.speakAgentStatus?.('Hello. This is Chloe, your voice assistant.');
   });
 
   function preference(key, value) {
@@ -628,6 +636,9 @@
     const editable = event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable="true"]');
     if (event.code !== 'Space' || !event.ctrlKey || event.repeat || editable || pushToTalkHeld) return;
     event.preventDefault();
+    // Unlock the Fish audio playback context during the physical key press.
+    const audioUnlock = window.unlockFishAudio?.();
+    if (audioUnlock) void audioUnlock.catch(() => {});
     pushToTalkHeld = true;
     beginPushToTalk();
   }, true);

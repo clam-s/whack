@@ -315,6 +315,7 @@
         <p id="voiceTranscriptPreview" class="text-sm" hidden></p>
         <div class="flex flex-wrap gap-2">
           <button id="voiceMicrophone" type="button" class="rounded bg-c1-navy px-3 min-h-[44px] text-white">Start microphone</button>
+          <button id="testAgentVoice" type="button" class="rounded border border-slate-400 px-3 min-h-[44px]">Test voice</button>
           <button id="sendVoiceCommand" type="submit" class="rounded bg-c1-navy px-3 min-h-[44px] text-white">Send command</button>
           <button type="button" data-quick-command="show balance" class="rounded border px-3 min-h-[44px]">Show balance</button>
           <button type="button" data-quick-command="open savings" class="rounded border px-3 min-h-[44px]">Open savings</button>
@@ -805,24 +806,33 @@
       utter.pitch = 1.0;
       window.speechSynthesis.speak(utter);
     }
-    let agentAudio;
+    let agentAudioContext;
+    let agentAudioSource;
     let agentSpeechRequest;
+    window.unlockFishAudio = function () {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return Promise.reject(new Error('Web Audio is unavailable in this browser.'));
+      agentAudioContext ||= new AudioContextClass();
+      return agentAudioContext.state === 'suspended' ? agentAudioContext.resume() : Promise.resolve();
+    };
     window.stopAgentSpeech = function () {
       agentSpeechRequest?.abort();
       agentSpeechRequest = undefined;
-      agentAudio?.pause();
-      if (agentAudio?.src?.startsWith('blob:')) URL.revokeObjectURL(agentAudio.src);
-      agentAudio = undefined;
+      try { agentAudioSource?.stop(); } catch {}
+      agentAudioSource = undefined;
       window.speechSynthesis?.cancel();
     };
     window.speakAgentStatus = async function (text) {
       if (!text || document.body.classList.contains('voice-listening')) return;
       window.dispatchEvent(new CustomEvent('voice-agent-speech', { detail: { status: 'requested' } }));
+      // Start/resume Web Audio before the async network request so the browser's
+      // user-gesture permission from the voice keybind or Test voice click is preserved.
+      const audioUnlock = window.unlockFishAudio();
       agentSpeechRequest?.abort();
       const request = new AbortController();
       agentSpeechRequest = request;
-      agentAudio?.pause();
-      if (agentAudio?.src?.startsWith('blob:')) URL.revokeObjectURL(agentAudio.src);
+      try { agentAudioSource?.stop(); } catch {}
+      agentAudioSource = undefined;
       try {
         const response = await fetch('/api/speak', {
           method: 'POST',
@@ -830,21 +840,31 @@
           body: JSON.stringify({ text }),
           signal: request.signal,
         });
-        if (!response.ok) throw new Error('Fish Audio is unavailable');
+        if (!response.ok) {
+          let message = `Fish Audio request failed (HTTP ${response.status}).`;
+          try {
+            const result = await response.json();
+            if (typeof result.error === 'string') message = result.error;
+          } catch {}
+          throw new Error(message);
+        }
         if (agentSpeechRequest !== request) return;
-        const url = URL.createObjectURL(await response.blob());
-        agentAudio = new Audio(url);
-        agentAudio.addEventListener('ended', () => {
-          URL.revokeObjectURL(url);
-          if (agentAudio?.src === url) agentAudio = undefined;
-        }, { once: true });
-        await agentAudio.play();
+        if (response.headers.get('X-Fish-Voice-Fallback') === 'true') {
+          window.dispatchEvent(new CustomEvent('voice-agent-speech', { detail: { status: 'voice-fallback' } }));
+        }
+        await audioUnlock;
+        const audioData = await response.arrayBuffer();
+        const audioBuffer = await agentAudioContext.decodeAudioData(audioData);
+        if (agentSpeechRequest !== request) return;
+        agentAudioSource = agentAudioContext.createBufferSource();
+        agentAudioSource.buffer = audioBuffer;
+        agentAudioSource.connect(agentAudioContext.destination);
+        agentAudioSource.addEventListener('ended', () => { agentAudioSource = undefined; }, { once: true });
+        agentAudioSource.start();
         window.dispatchEvent(new CustomEvent('voice-agent-speech', { detail: { status: 'playing' } }));
-      } catch {
+      } catch (error) {
         if (request.signal.aborted) return;
-        // Keep agent feedback available if Fish Audio is unconfigured or temporarily unavailable.
-        window.dispatchEvent(new CustomEvent('voice-agent-speech', { detail: { status: 'fallback' } }));
-        speakText(text);
+        window.dispatchEvent(new CustomEvent('voice-agent-speech', { detail: { status: 'fallback', message: error.message } }));
       }
     };
 
