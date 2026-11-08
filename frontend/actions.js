@@ -293,7 +293,7 @@
     const validPages = [
       'checking', 'savings', 'credit-cards', 'loans', 'rewards',
       'account-details', 'send-money', 'transfer', 'lock-card',
-      'statements', 'open-account', 'upcoming-all', 'recent-all'
+      'statements', 'open-account', 'upcoming-all', 'recent-all', 'merchants'
     ];
 
     if (!validPages.includes(page)) {
@@ -380,6 +380,7 @@
     const { type, payload } = state.pendingConfirmation;
 
     if (type === 'transfer') {
+      if (state.currentPage === 'transfer') state.pageParams = {};
       const { fromAccountId, toAccountId, amount } = payload;
       const fromAcc = state.accounts[fromAccountId];
       const toAcc = state.accounts[toAccountId];
@@ -413,6 +414,7 @@
       setNotification(`Successfully transferred $${amount.toFixed(2)} to ${toAcc.name}.`, 'success');
     } 
     else if (type === 'sendMoney') {
+      if (state.currentPage === 'send-money') state.pageParams = {};
       const { recipient, amount, note, sourceAccountId } = payload;
       const fromAcc = state.accounts[sourceAccountId];
 

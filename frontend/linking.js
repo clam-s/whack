@@ -2,6 +2,7 @@
   const { getState, subscribe, navigateTo, toggleHighContrast } = window.appStore;
   const byId = (id) => document.getElementById(id);
   const command = byId('voiceCommand');
+  const commandForm = byId('voiceCommandForm');
   const commandStatus = byId('voiceCommandStatus');
   const sendButton = byId('sendVoiceCommand');
   const microphone = byId('voiceMicrophone');
@@ -133,11 +134,17 @@
     ['checking', 'Checking'], ['savings', 'Savings'], ['credit-cards', 'Credit Cards'],
     ['loans', 'Loans'], ['rewards', 'Rewards and Deals'],
     ['recent-all', 'Recent Transactions'], ['account-details', 'Account Details'],
+    ['merchants', 'Merchant transactions'],
+    ['transfer', 'Transfer'], ['send-money', 'Send Money'],
   ]);
   function readCurrentView() {
     const { currentPage: page, accounts, rewards } = getState();
     const title = viewLabels.get(page) ?? byId('viewContainer').querySelector('h1')?.textContent;
     if (!title) return;
+    if (page === 'merchants') {
+      window.speakText(title + '. ' + (byId('merchantResultCount')?.textContent ?? ''));
+      return;
+    }
     const sampleSummaries = {
       savings: () => ` Sample balance: ${window.appStore.formatCurrency(accounts.savings.balance)}.`,
       'credit-cards': () => ` Sample card balance: ${window.appStore.formatCurrency(accounts.credit.balance)}.`,
@@ -172,6 +179,7 @@
   const destinations = new Map([
     ['RESPONSE_OPEN_CHECKING', 'checking'], ['RESPONSE_OPEN_SAVINGS', 'savings'],
     ['RESPONSE_OPEN_CREDIT_CARDS', 'credit-cards'], ['RESPONSE_OPEN_LOANS', 'loans'],
+    ['RESPONSE_OPEN_TRANSFER', 'transfer'], ['RESPONSE_OPEN_SEND_MONEY', 'send-money'],
     ['RESPONSE_OPEN_REWARDS', 'rewards'], ['RESPONCE_SHOW_BALANCE', 'checking'],
     ['REPONCE_SHOW_TRANSACTIONS', 'recent-all'], ['RESPONSE_SHOW_NAME', 'account-details'],
     ['RESPONSE_SHOW_USER_ID', 'account-details'], ['RESPONSE_SHOW_ACCOUNT_SUMMARY', 'account-details'],
@@ -189,9 +197,43 @@
     'RESPONCE_SHOW_BALANCE', 'REPONCE_SHOW_TRANSACTIONS', 'RESPONSE_SHOW_NAME',
     'RESPONSE_SHOW_USER_ID', 'RESPONSE_SHOW_ACCOUNT_SUMMARY',
   ]);
-  function openDestination(code) {
+  function openMerchantFilter(merchant) {
+    navigateTo('merchants', { merchant });
+    commandStatus.textContent = byId('merchantResultCount').textContent;
+    return true;
+  }
+
+  function findTransferAccount(name) {
+    const label = name.toLowerCase().replace(/^my /, '').replace(/ account$/, '');
+    const accounts = Object.values(getState().accounts);
+    const account = accounts.find(({ id, name }) => label === id || label === name.toLowerCase());
+    if (account) return account.id;
+    const matches = accounts.filter(({ type }) => label === type.toLowerCase());
+    return matches.length === 1 ? matches[0].id : undefined;
+  }
+
+  function openPaymentDraft(page, draft) {
+    const { amount, recipient, note } = draft;
+    if (page === 'transfer') {
+      const from = findTransferAccount(draft.from);
+      const to = findTransferAccount(draft.to);
+      if (!from || !to || from === to) return false;
+      navigateTo(page, { amount, from, to });
+      commandStatus.textContent = 'Transfer form filled in. Review the accounts and amount.';
+    } else {
+      navigateTo(page, { amount, recipient, note });
+      commandStatus.textContent = 'Send Money form filled in. Review the recipient and amount.';
+    }
+    return true;
+  }
+
+  function openDestination(code, { merchant, draft } = {}) {
+    if (code === 'RESPONSE_FILTER_MERCHANTS') {
+      return typeof merchant === 'string' && openMerchantFilter(merchant);
+    }
     const page = destinations.get(code);
     if (!page) return false;
+    if (draft && (page === 'transfer' || page === 'send-money') && openPaymentDraft(page, draft)) return true;
     navigateTo(page);
     commandStatus.textContent = `Opened ${viewLabels.get(page)}.`;
     if (accountActions.has(code) && !account) showSignIn();
@@ -208,12 +250,83 @@
     ['checking', 'RESPONSE_OPEN_CHECKING'], ['savings', 'RESPONSE_OPEN_SAVINGS'],
     ['credit card', 'RESPONSE_OPEN_CREDIT_CARDS'], ['credit cards', 'RESPONSE_OPEN_CREDIT_CARDS'],
     ['loan', 'RESPONSE_OPEN_LOANS'], ['loans', 'RESPONSE_OPEN_LOANS'],
+    ['transfer', 'RESPONSE_OPEN_TRANSFER'], ['transfer money', 'RESPONSE_OPEN_TRANSFER'],
+    ['send money', 'RESPONSE_OPEN_SEND_MONEY'], ['zelle', 'RESPONSE_OPEN_SEND_MONEY'],
     ['rewards', 'RESPONSE_OPEN_REWARDS'], ['rewards and deals', 'RESPONSE_OPEN_REWARDS'],
   ]);
+  function availableButtons() {
+    const scope = accountDialog.open ? accountDialog :
+      getState().pendingConfirmation ? byId('confirmationModal') : document;
+    return [...scope.querySelectorAll('button, #brandLogoLink')].filter((button) =>
+      !button.matches(':disabled, #voiceMicrophone, #sendVoiceCommand, #confirmActionBtn, [data-voice-ignore]') &&
+      !button.closest('[hidden], [inert], [aria-hidden="true"], [aria-disabled="true"]') &&
+      button.getClientRects().length && getComputedStyle(button).visibility === 'visible'
+    );
+  }
+
+  function buttonLabel(button) {
+    return button.dataset.voiceLabel || button.innerText.trim() || button.getAttribute('aria-label') || '';
+  }
+
+  function describeButton(button) {
+    const label = buttonLabel(button);
+    const pressed = button.getAttribute('aria-pressed');
+    return label && (pressed === null ? label : `${label} (currently ${pressed === 'true' ? 'on' : 'off'})`);
+  }
+
+  function activateButton(button) {
+    commandStatus.textContent = `Selected ${buttonLabel(button)}.`;
+    button.click();
+    return true;
+  }
+
+  function clickNamedButton(label) {
+    const normalize = (value) => value.toLowerCase().replace(/['’]/g, '').replace(/&/g, ' and ')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const target = normalize(label);
+    const matches = availableButtons().filter((button) => {
+      const labels = [button.dataset.voiceLabel, button.getAttribute('aria-label'), button.innerText];
+      return target && labels.some((value) => value && normalize(value) === target);
+    });
+    if (matches.length === 1) return activateButton(matches[0]);
+    if (!matches.length) return false;
+    commandStatus.textContent = 'More than one button has that label. Try naming the specific item or section.';
+    return true;
+  }
+
   function runLocal(text) {
     const phrase = text.toLowerCase().replace(/['’]/g, '').replace(/&/g, ' and ')
       .replace(/\s+/g, ' ').trim().replace(/[.!?,]+$/, '').trimEnd()
       .replace(/^(?:(?:can|could|would) you )?(?:please )?/, '').replace(/,? please$/, '');
+    const commandPhrase = text.replace(/\s+/g, ' ').trim().replace(/[.!?,]+$/, '').trimEnd()
+      .replace(/^(?:(?:can|could|would) you )?(?:please )?/i, '').replace(/,? please$/i, '');
+    const button = commandPhrase.match(/^(?:click|press|select) (.+)$/i);
+    if (button && clickNamedButton(button[1])) return true;
+    const money = commandPhrase.match(/^(transfer|move|send) (?:\$\s*)?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)(?: (?:dollars?|usd))? (.+)$/i);
+    if (money) {
+      const [, verb, rawAmount, details] = money;
+      const amount = rawAmount.replace(/,/g, '');
+      if (Number.isFinite(Number(amount)) && Number(amount) > 0) {
+        const payment = verb.toLowerCase() === 'send'
+          ? details.match(/^to (.+?)(?: (?:for|with (?:a )?(?:note|memo)(?: saying)?) (.+))?$/i)
+          : null;
+        if (payment) {
+          const [, recipient, note] = payment;
+          if (!/\b(?:for|from|and|then|tomorrow|today)\b/i.test(recipient)) {
+            return openPaymentDraft('send-money', { amount, recipient, note });
+          }
+        }
+        const route = details.match(/^from (.+?) to (.+)$/i);
+        if (route && verb.toLowerCase() !== 'send' &&
+            openPaymentDraft('transfer', { amount, from: route[1], to: route[2] })) return true;
+      }
+    }
+    const merchant = commandPhrase.match(
+      /^(?:(?:show(?: me)?|list|find|view) (?:my )?(?:transactions|purchases) (?:from|at|for)|filter (?:my )?transactions (?:by(?: merchant)?|for)|filter merchants by|filter (?:by )?merchant) (.+)$/i
+    )?.[1].trim();
+    if (merchant || /^(?:(?:open|show(?: me)?|view) (?:the )?merchant(?:s| transactions)|clear (?:the )?merchant filter|show all merchant(?:s| transactions))$/.test(phrase)) {
+      return openMerchantFilter(merchant ?? '');
+    }
     if (phrase === 'go home') return openDestination('RESPONSE_OPEN_CHECKING');
     if (phrase === 'focus command') {
       command.focus();
@@ -237,7 +350,7 @@
       runLocal(command.value);
     });
   });
-  byId('voiceCommandForm').addEventListener('submit', async (event) => {
+  commandForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const text = command.value.trim();
     if (!text || voiceSession || sendButton.disabled || runLocal(text)) return;
@@ -245,9 +358,20 @@
     window.setVoiceState('thinking');
     commandStatus.textContent = 'Finding the matching dashboard action…';
     try {
-      const result = await post('/api/intent', { text });
-      if (!openDestination(result.responseCode)) {
-        commandStatus.textContent = 'Try one dashboard action, such as “open savings” or “show recent transactions”.';
+      const page = getState().currentPage;
+      const controls = availableButtons().map((button) => ({ button, label: describeButton(button) }))
+        .filter(({ label }) => label && label.length <= 200).slice(0, 100);
+      const result = await post('/api/intent', { text, controls: controls.map(({ label }) => label) });
+      if (result.responseCode === 'RESPONSE_CLICK_CONTROL') {
+        const selected = Number.isInteger(result.controlIndex) ? controls[result.controlIndex] : undefined;
+        if (selected && getState().currentPage === page && availableButtons().includes(selected.button) &&
+            describeButton(selected.button) === selected.label) {
+          activateButton(selected.button);
+        } else {
+          commandStatus.textContent = 'That control is no longer available. Try the command again.';
+        }
+      } else if (!openDestination(result.responseCode, result)) {
+        commandStatus.textContent = result.message || 'Try one dashboard action, such as “open savings” or “show recent transactions”.';
       }
     } catch (error) {
       commandStatus.textContent = error.message;
@@ -264,7 +388,7 @@
       return;
     }
     command.value = text;
-    if (!runLocal(text)) commandStatus.textContent = 'Transcript ready. Review it and select Send command.';
+    commandForm.requestSubmit();
   }
 
   function enableRecorderFallback() {
