@@ -201,7 +201,7 @@
       
       <!-- Brand Logo -->
       <div class="flex items-center space-x-3">
-        <a href="#checking" id="brandLogoLink" class="flex items-center p-1 rounded-sm focus:outline-none min-h-[44px]" aria-label="Capital One Home - Navigate to Checking Dashboard">
+        <a href="#checking" data-voice-label="Home" id="brandLogoLink" class="flex items-center p-1 rounded-sm focus:outline-none min-h-[44px]" aria-label="Capital One Home - Navigate to Checking Dashboard">
           <svg class="h-8 w-auto" viewBox="0 0 280 65" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Capital One Logo">
             <text x="10" y="44" font-family="'Inter', sans-serif" font-weight="900" font-style="italic" font-size="34" fill="#004879" letter-spacing="-0.5">Capital</text>
             <text x="135" y="44" font-family="'Inter', sans-serif" font-weight="400" font-style="italic" font-size="34" fill="#004879">One</text>
@@ -215,7 +215,7 @@
         
         <!-- High Contrast Mode Toggle -->
         <button
-          id="highContrastToggle"
+          data-voice-label="Contrast" id="highContrastToggle"
           class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-100 text-c1-textMuted font-semibold text-xs min-h-[44px] transition"
           aria-pressed="false"
           aria-label="Toggle High Contrast Mode"
@@ -228,7 +228,7 @@
 
         <!-- HCI Gaze Magnifier & Target Expansion Toggle (Apple Fisheye / Fitts' Law) -->
         <button
-          id="hciLensToggle"
+          data-voice-label="Gaze Lens" id="hciLensToggle"
           class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-100 text-c1-navy font-bold text-xs min-h-[44px] transition"
           aria-pressed="false"
           aria-label="Toggle HCI Gaze Magnification and Target Expansion"
@@ -243,7 +243,7 @@
 
         <!-- Live Webcam Eye Tracking: drives the Gaze Lens with real gaze instead of the mouse -->
         <button
-          id="liveEyeTrackingToggle"
+          data-voice-label="Eye Tracking" id="liveEyeTrackingToggle"
           class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-100 text-c1-navy font-bold text-xs min-h-[44px] transition"
           aria-pressed="false"
           aria-label="Toggle live webcam eye tracking"
@@ -267,7 +267,7 @@
 
         <!-- Global Text-to-Speech Account Reader Button -->
         <button
-          id="speakAccountBtn"
+          data-voice-label="Listen Aloud" id="speakAccountBtn"
           class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold text-xs min-h-[44px] transition"
           aria-label="Speak account balance and summary aloud using speech synthesis"
           title="Audio Accessibility: Read account balance and overview aloud"
@@ -280,7 +280,7 @@
 
         <!-- Voice Assistant Placeholder Button (Designed for Voice Layer - Step 3) -->
         <button
-          id="voiceAssistantBtn"
+          data-voice-label="Voice Assistant" id="voiceAssistantBtn"
           class="inline-flex items-center space-x-2 px-3.5 py-2 bg-c1-navy hover:bg-c1-lightNavy text-white font-semibold text-xs rounded-full shadow-sm min-h-[44px] transition"
           aria-expanded="false"
           aria-controls="voiceAssistantDrawer"
@@ -342,7 +342,7 @@
           <button type="button" data-quick-command="open savings" class="rounded border px-3 min-h-[44px]">Open savings</button>
           <button type="button" data-quick-command="show recent transactions" class="rounded border px-3 min-h-[44px]">Recent transactions</button>
         </div>
-        <p class="text-sm text-slate-600">Try “show transactions from Spotify”, “transfer 50 dollars from checking to savings”, or “send 20 dollars to Alex Smith”.</p>
+        <p class="text-sm text-slate-600">Try “click Contrast”, “click View All Recent Transactions”, or “show transactions from Spotify”.</p>
       </form>
       <p id="voiceCommandStatus" class="text-sm" role="status"></p>
 
@@ -809,6 +809,15 @@
         liveEyeTrackingBadge.className = 'bg-emerald-400 text-slate-950 font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-xs shadow-xs';
         liveEyeTrackingFrame.style.pointerEvents = 'none'; // hand the page back to the dashboard
         liveAnnouncer.textContent = 'Eye tracking calibrated. Gaze now drives the Gaze Lens.';
+      } else {
+        liveEyeTrackingFrame.style.pointerEvents = 'auto';
+        gazeCursorDot.classList.add('hidden');
+        pendingExpandTarget = null;
+        clearGazeExpansion();
+        if (state === 'error') {
+          liveEyeTrackingBadge.textContent = 'RETRY';
+          liveAnnouncer.textContent = 'Eye tracking stopped. Use Retry in the camera overlay.';
+        }
       }
     };
 
@@ -1125,7 +1134,7 @@
     }
 
     function escapeTransactionDescription(description) {
-      return description.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+      return description.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
     }
 
     // --- Helper: Brand Logo Generator for Transactions ---
@@ -1182,7 +1191,7 @@
             <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
               <div class="flex items-center justify-between">
                 <h2 class="text-sm font-bold text-slate-800 tracking-tight">Recent Transactions</h2>
-                <button data-nav="merchants" class="text-xs font-bold text-c1-navy hover:underline uppercase tracking-wider min-h-[44px] flex items-center">
+                <button data-voice-label="View All Recent Transactions" data-nav="merchants" class="text-xs font-bold text-c1-navy hover:underline uppercase tracking-wider min-h-[44px] flex items-center">
                   View All &gt;
                 </button>
               </div>
@@ -1215,7 +1224,7 @@
             <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
               <div class="flex items-center justify-between">
                 <h2 class="text-sm font-bold text-slate-800 tracking-tight">Upcoming Transactions</h2>
-                <button data-nav="upcoming-all" class="text-xs font-bold text-c1-navy hover:underline uppercase tracking-wider min-h-[44px] flex items-center">
+                <button data-voice-label="View All Upcoming Transactions" data-nav="upcoming-all" class="text-xs font-bold text-c1-navy hover:underline uppercase tracking-wider min-h-[44px] flex items-center">
                   View All (${state.upcomingTransactions.length}) &gt;
                 </button>
               </div>
@@ -1499,7 +1508,7 @@
                     <div class="text-emerald-700 font-bold">${d.discount}</div>
                     <div class="text-slate-400 text-[11px]">Expires ${formatDate(d.expires)}</div>
                   </div>
-                  <button class="px-3 py-1.5 bg-slate-100 hover:bg-c1-navy hover:text-white font-bold text-slate-700 border border-slate-300 rounded-md min-h-[44px]">
+                  <button data-voice-ignore class="px-3 py-1.5 bg-slate-100 hover:bg-c1-navy hover:text-white font-bold text-slate-700 border border-slate-300 rounded-md min-h-[44px]">
                     Activate Deal
                   </button>
                 </div>
@@ -1633,9 +1642,10 @@
         </div>
       `;
 
-      const { recipient: draftRecipient, amount: draftAmount } = state.pageParams;
+      const { recipient: draftRecipient, amount: draftAmount, note: draftNote } = state.pageParams;
       document.getElementById('zelleRecipient').value = draftRecipient ?? '';
       document.getElementById('zelleAmount').value = draftAmount ?? '';
+      document.getElementById('zelleNote').value = draftNote ?? '';
 
       document.getElementById('sendMoneyForm')?.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -1797,7 +1807,7 @@
                   </div>
                 </div>
                 <button
-                  onclick="alert('Downloading statement PDF for ${s.account} - ${s.month}')"
+                  data-voice-label="Download PDF for ${escapeTransactionDescription(s.account)} ${escapeTransactionDescription(s.month)}" onclick="alert('Downloading statement PDF for ${s.account} - ${s.month}')"
                   class="px-3.5 py-1.5 bg-slate-100 hover:bg-c1-navy hover:text-white font-bold text-slate-700 border border-slate-300 rounded-md min-h-[44px]"
                 >
                   Download PDF
@@ -1910,7 +1920,7 @@
                 <div class="flex items-center space-x-3">
                   <span class="font-bold text-slate-900 text-sm">${formatCurrency(u.amount)}</span>
                   <button
-                    data-cancel-up="${u.id}"
+                    data-voice-label="Cancel Payment for ${escapeTransactionDescription(u.description)} on ${formatDate(u.date)}" data-cancel-up="${u.id}"
                     class="px-3 py-1.5 text-xs text-red-700 hover:bg-red-50 border border-red-300 font-semibold rounded-md min-h-[44px]"
                   >
                     Cancel Payment

@@ -51,7 +51,7 @@
 </div></div>
 
 <script type="module">
-import { FilesetResolver, FaceLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+const visionBase = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 
 const $ = id => document.getElementById(id);
 const cv = $("c"), ctx = cv.getContext("2d"), vid = $("vid");
@@ -225,9 +225,13 @@ function notifyParentGaze(x, y, fixating) { try { if (window.parent !== window) 
 
 /* ---------- camera + landmarker ---------- */
 async function init() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error("Camera access requires HTTPS or localhost");
+  }
+  const { FilesetResolver, FaceLandmarker } = await import(visionBase + "/vision_bundle.mjs");
   const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 60 }, facingMode: "user" }, audio: false });
   vid.srcObject = stream; await vid.play();
-  const fs = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+  const fs = await FilesetResolver.forVisionTasks(visionBase + "/wasm");
   const opts = d => ({ baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate: d },
     runningMode: "VIDEO", numFaces: 1, outputFaceBlendshapes: true, outputFacialTransformationMatrixes: true,
     minFaceDetectionConfidence: 0.6, minFacePresenceConfidence: 0.6, minTrackingConfidence: 0.6 });
@@ -236,10 +240,30 @@ async function init() {
 }
 
 let lastVT = -1, fpsN = 0, fpsT = performance.now();
+function releaseTracker() {
+  vid.srcObject?.getTracks().forEach(track => track.stop());
+  vid.srcObject = null;
+  const detector = landmarker;
+  landmarker = null;
+  try { detector?.close(); } catch { /* A failed detector may already be closed. */ }
+  lastFeat = null;
+  lastVT = -1;
+}
+
+addEventListener("pagehide", releaseTracker);
+
 function loop() {
   if (landmarker && vid.readyState >= 2 && vid.currentTime !== lastVT) {
     lastVT = vid.currentTime; const now = performance.now();
-    const f = extract(landmarker.detectForVideo(vid, now));
+    let f;
+    try {
+      f = extract(landmarker.detectForVideo(vid, now));
+    } catch {
+      releaseTracker();
+      model.ok = false;
+      fail("The camera tracker stopped. Select Retry to restart it.");
+      return;
+    }
     lastFeat = f; $("sFace").textContent = f ? (f.blink > 0.5 ? "blink" : "yes") : "NO";
     if (f && model.ok && state === "tracking") onGaze(f, now);
     if (++fpsN >= 20) { fps = fpsN * 1000 / (now - fpsT); fpsN = 0; fpsT = now; $("sFps").textContent = fps.toFixed(0); }
@@ -271,7 +295,8 @@ function onGaze(f, now) {
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
 async function dwellOn(px, py, label, onSample) {
   const t0 = performance.now(); let n = 0;
-  for (;;) {
+  const detector = landmarker;
+  while (landmarker === detector && detector) {
     const e = performance.now() - t0, k = Math.max(0, 1 - e / 1900);
     target = { x: px, y: py, r: 8 + 18 * k, label };
     if (e > 800 && lastFeat && lastFeat.blink < 0.35) { onSample(lastFeat, e); n++; }
@@ -284,7 +309,8 @@ const VAL = [[.17, .5], [.83, .5], [.5, .17], [.5, .83], [.39, .61]];
 async function pursuit() { // smooth-pursuit pass: dense coverage incl. edges; labels lag-compensated
   const T = 10000, t0 = performance.now(), tmp = []; let last = null;
   const pos = s => [(.5 + .44 * Math.sin(4 * Math.PI * s)) * W, (.5 + .42 * Math.sin(6 * Math.PI * s + 1.2)) * H];
-  for (;;) {
+  const detector = landmarker;
+  while (landmarker === detector && detector) {
     const e = performance.now() - t0; if (e > T) break;
     const [x, y] = pos(e / T); target = { x, y, r: 14, label: "" };
     if (lastFeat && lastFeat !== last && lastFeat.blink < 0.35 && e > 600) { last = lastFeat; const [lx, ly] = pos(Math.max(0, e - 110) / T); tmp.push([lastFeat, lx, ly, Math.floor(e / T * 8)]); }
@@ -293,33 +319,42 @@ async function pursuit() { // smooth-pursuit pass: dense coverage incl. edges; l
   target = null; tmp.forEach(([f, x, y, g]) => model.add(f, x, y, 0.5, 100 + g));
 }
 async function calibrate() {
+  const detector = landmarker;
   setState("calibrating"); $("center").classList.add("hide"); model.S.length = 0; model.ok = false; gaze = null; fx.reset(); fy.reset();
   await sleep(500);
+  if (landmarker !== detector) return;
   const order = shuffle(CAL.map((p, i) => [p, i]));
   for (const [[fxr, fyr], gi] of order) {
     const px = fxr * W, py = fyr * H; let got = 0, tries = 0, tmp = [];
-    while (got < 15 && tries++ < 3) { tmp = []; got = await dwellOn(px, py, "", f => tmp.push(f)); }
+    while (landmarker === detector && got < 15 && tries++ < 3) { tmp = []; got = await dwellOn(px, py, "", f => tmp.push(f)); }
+    if (landmarker !== detector) return;
     tmp.forEach(f => model.add(f, px, py, 1, gi));
   }
   await pursuit();
+  if (landmarker !== detector) return;
   if (model.S.length < 60) return fail("Not enough valid frames: check lighting and that your face is visible.");
-  setState("training"); await sleep(30); model.train();
+  setState("training"); await sleep(30);
+  if (landmarker !== detector) return;
+  model.train();
   $("sCV").textContent = `${model.cvErr.toFixed(0)} px (${(model.cvErr / pxPerDeg()).toFixed(1)}°)${model.kr ? " +KRR" : ""}`;
   // independent validation on unseen targets
   setState("validating"); const errs = [];
   for (const [a, b] of shuffle([...VAL])) {
     const px = a * W, py = b * H, ps = [];
     await dwellOn(px, py, "", f => ps.push(model.predict(f)));
+    if (landmarker !== detector) return;
     if (ps.length > 5) errs.push(Math.hypot(median(ps.map(p => p[0])) - px, median(ps.map(p => p[1])) - py));
   }
   if (errs.length) { const m = errs.reduce((a, b) => a + b) / errs.length; $("sVal").textContent = `${m.toFixed(0)} px (${(m / pxPerDeg()).toFixed(1)}°)`; }
   setState("tracking");
 }
-function fail(m) { setState("idle"); $("err").textContent = m; $("center").classList.remove("hide"); $("go").textContent = "Retry"; }
+function fail(m) { target = null; gaze = null; setState("error"); $("err").textContent = m; $("center").classList.remove("hide"); $("go").textContent = "Retry"; }
 
 async function driftFix() { // one-point re-centre: removes slow offset drift without full recalibration
+  const detector = landmarker;
   setState("drift check"); const ps = [], px = W / 2, py = H / 2;
   await dwellOn(px, py, "", f => ps.push(model.predict(f)));
+  if (landmarker !== detector) return;
   if (ps.length > 8) { model.bias[0] += median(ps.map(p => p[0])) - px; model.bias[1] += median(ps.map(p => p[1])) - py; }
   setState("tracking");
 }
@@ -331,7 +366,7 @@ addEventListener("click", e => {
 });
 addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
-  if (k === "c" && landmarker) calibrate();
+  if (k === "c") window.recalibrateGaze();
   if (k === "h") showHeat = !showHeat;
   if (k === "d" && model.ok && state === "tracking") driftFix();
   if (k === "l") showLm = !showLm;
@@ -360,15 +395,20 @@ function draw() {
 
 let pointerOn = false;
 const setPointer = v => { pointerOn = v; $("bPtr").textContent = "Eye pointer: " + (v ? "on" : "off"); };
-$("bRecal").onclick = () => { if (landmarker) calibrate(); };
+$("bRecal").onclick = () => window.recalibrateGaze();
 $("bDrift").onclick = () => { if (model.ok && state === "tracking") driftFix(); };
-$("bPtr").onclick = () => { if (pointerOn) return setPointer(false); setPointer(true); if (!model.ok && state === "idle") enableTracking(); }; // first time: start + calibrate; later toggles never recalibrate
+$("bPtr").onclick = () => { if (pointerOn) return setPointer(false); setPointer(true); if (!model.ok && (state === "idle" || state === "error")) enableTracking(); }; // first time: start + calibrate; later toggles never recalibrate
 
 /* ---------- start ---------- */
 async function enableTracking() {
+  if (!["idle", "error", "tracking"].includes(state)) return;
   $("err").textContent = ""; $("go").disabled = true; $("go").textContent = "Loading model…"; setState("loading");
   try { if (!landmarker) { await init(); requestAnimationFrame(loop); } await calibrate(); }
-  catch (e) { fail("Could not start: " + (e.message || e) + ". Allow camera access and serve over https or localhost."); }
+  catch (e) {
+    releaseTracker();
+    model.ok = false;
+    fail("Could not start: " + (e.message || e) + ". Check camera permission and your connection, then retry.");
+  }
   $("go").disabled = false;
   if (!model.ok) setPointer(false);
 }
@@ -376,7 +416,7 @@ $("go").onclick = () => { setPointer(true); enableTracking(); };
 
 // Exposed for the host dashboard's "Recalibrate" button (frontend/index.html), called via
 // iframe.contentWindow.recalibrateGaze() -- works even while the iframe itself is pointer-events:none.
-window.recalibrateGaze = () => { if (landmarker) calibrate(); else enableTracking(); };
+window.recalibrateGaze = enableTracking;
 
 // When embedded (?embed=1), drop the opaque page background so the host dashboard shows through,
 // and restyle the dev-tool-styled bar/panel/message box to match the Capital One dashboard instead

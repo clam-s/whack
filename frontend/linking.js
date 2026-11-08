@@ -213,7 +213,7 @@
   }
 
   function openPaymentDraft(page, draft) {
-    const { amount, recipient } = draft;
+    const { amount, recipient, note } = draft;
     if (page === 'transfer') {
       const from = findTransferAccount(draft.from);
       const to = findTransferAccount(draft.to);
@@ -221,7 +221,7 @@
       navigateTo(page, { amount, from, to });
       commandStatus.textContent = 'Transfer form filled in. Review the accounts and amount.';
     } else {
-      navigateTo(page, { amount, recipient });
+      navigateTo(page, { amount, recipient, note });
       commandStatus.textContent = 'Send Money form filled in. Review the recipient and amount.';
     }
     return true;
@@ -254,20 +254,67 @@
     ['send money', 'RESPONSE_OPEN_SEND_MONEY'], ['zelle', 'RESPONSE_OPEN_SEND_MONEY'],
     ['rewards', 'RESPONSE_OPEN_REWARDS'], ['rewards and deals', 'RESPONSE_OPEN_REWARDS'],
   ]);
+  function availableButtons() {
+    const scope = accountDialog.open ? accountDialog :
+      getState().pendingConfirmation ? byId('confirmationModal') : document;
+    return [...scope.querySelectorAll('button, #brandLogoLink')].filter((button) =>
+      !button.matches(':disabled, #voiceMicrophone, #sendVoiceCommand, #confirmActionBtn, [data-voice-ignore]') &&
+      !button.closest('[hidden], [inert], [aria-hidden="true"], [aria-disabled="true"]') &&
+      button.getClientRects().length && getComputedStyle(button).visibility === 'visible'
+    );
+  }
+
+  function buttonLabel(button) {
+    return button.dataset.voiceLabel || button.innerText.trim() || button.getAttribute('aria-label') || '';
+  }
+
+  function describeButton(button) {
+    const label = buttonLabel(button);
+    const pressed = button.getAttribute('aria-pressed');
+    return label && (pressed === null ? label : `${label} (currently ${pressed === 'true' ? 'on' : 'off'})`);
+  }
+
+  function activateButton(button) {
+    commandStatus.textContent = `Selected ${buttonLabel(button)}.`;
+    button.click();
+    return true;
+  }
+
+  function clickNamedButton(label) {
+    const normalize = (value) => value.toLowerCase().replace(/['’]/g, '').replace(/&/g, ' and ')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const target = normalize(label);
+    const matches = availableButtons().filter((button) => {
+      const labels = [button.dataset.voiceLabel, button.getAttribute('aria-label'), button.innerText];
+      return target && labels.some((value) => value && normalize(value) === target);
+    });
+    if (matches.length === 1) return activateButton(matches[0]);
+    if (!matches.length) return false;
+    commandStatus.textContent = 'More than one button has that label. Try naming the specific item or section.';
+    return true;
+  }
+
   function runLocal(text) {
     const phrase = text.toLowerCase().replace(/['’]/g, '').replace(/&/g, ' and ')
       .replace(/\s+/g, ' ').trim().replace(/[.!?,]+$/, '').trimEnd()
       .replace(/^(?:(?:can|could|would) you )?(?:please )?/, '').replace(/,? please$/, '');
     const commandPhrase = text.replace(/\s+/g, ' ').trim().replace(/[.!?,]+$/, '').trimEnd()
       .replace(/^(?:(?:can|could|would) you )?(?:please )?/i, '').replace(/,? please$/i, '');
+    const button = commandPhrase.match(/^(?:click|press|select) (.+)$/i);
+    if (button && clickNamedButton(button[1])) return true;
     const money = commandPhrase.match(/^(transfer|move|send) (?:\$\s*)?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)(?: (?:dollars?|usd))? (.+)$/i);
     if (money) {
       const [, verb, rawAmount, details] = money;
       const amount = rawAmount.replace(/,/g, '');
       if (Number.isFinite(Number(amount)) && Number(amount) > 0) {
-        const recipient = verb.toLowerCase() === 'send' && details.match(/^to (.+)$/i)?.[1];
-        if (recipient && !/\b(?:for|from|and|then|tomorrow|today)\b/i.test(recipient)) {
-          return openPaymentDraft('send-money', { amount, recipient });
+        const payment = verb.toLowerCase() === 'send'
+          ? details.match(/^to (.+?)(?: (?:for|with (?:a )?(?:note|memo)(?: saying)?) (.+))?$/i)
+          : null;
+        if (payment) {
+          const [, recipient, note] = payment;
+          if (!/\b(?:for|from|and|then|tomorrow|today)\b/i.test(recipient)) {
+            return openPaymentDraft('send-money', { amount, recipient, note });
+          }
         }
         const route = details.match(/^from (.+?) to (.+)$/i);
         if (route && verb.toLowerCase() !== 'send' &&
@@ -311,9 +358,20 @@
     window.setVoiceState('thinking');
     commandStatus.textContent = 'Finding the matching dashboard action…';
     try {
-      const result = await post('/api/intent', { text });
-      if (!openDestination(result.responseCode, result)) {
-        commandStatus.textContent = 'Try one dashboard action, such as “open savings” or “show recent transactions”.';
+      const page = getState().currentPage;
+      const controls = availableButtons().map((button) => ({ button, label: describeButton(button) }))
+        .filter(({ label }) => label && label.length <= 200).slice(0, 100);
+      const result = await post('/api/intent', { text, controls: controls.map(({ label }) => label) });
+      if (result.responseCode === 'RESPONSE_CLICK_CONTROL') {
+        const selected = Number.isInteger(result.controlIndex) ? controls[result.controlIndex] : undefined;
+        if (selected && getState().currentPage === page && availableButtons().includes(selected.button) &&
+            describeButton(selected.button) === selected.label) {
+          activateButton(selected.button);
+        } else {
+          commandStatus.textContent = 'That control is no longer available. Try the command again.';
+        }
+      } else if (!openDestination(result.responseCode, result)) {
+        commandStatus.textContent = result.message || 'Try one dashboard action, such as “open savings” or “show recent transactions”.';
       }
     } catch (error) {
       commandStatus.textContent = error.message;

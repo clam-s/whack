@@ -19,6 +19,7 @@ const frontendFiles = new Map([
   ['/index.html', ['index.html', 'text/html']],
   ['/actions.js', ['actions.js', 'text/javascript']],
   ['/linking.js', ['linking.js', 'text/javascript']],
+  ['/eyeTracking/eyetracker_v4.html', ['eyeTracking/eyetracker_v4.html', 'text/html']],
 ]);
 const frontendAssets = new Map();
 for (const [path, [file, type]] of frontendFiles) {
@@ -158,20 +159,25 @@ const server = createServer(async (req, res) => {
     }
 
     if (path === '/api/generate' || path === '/api/intent') {
-      const text = readField(await readBody(req), 'text', 8000);
+      const body = await readBody(req);
+      const text = readField(body, 'text', 8000);
       const navigation = path === '/api/intent';
       const fallback = navigation ? navigationFallback : generationFallback;
+      const controls = navigation ? body.controls ?? [] : [];
+      if (!Array.isArray(controls) || controls.length > 100 ||
+          controls.some((label) => typeof label !== 'string' || !label.trim() || label.length > 200)) {
+        throw new RequestError(400, 'controls must contain at most 100 labels of up to 200 characters each');
+      }
       if (!OPENROUTER_API_KEY || !OPENROUTER_MODEL) {
         return send(res, 503, { ...fallback, error: 'OpenRouter is not configured' });
       }
       if (activeGenerations >= 4) throw new RequestError(429, 'Generation is busy');
       activeGenerations++;
       try {
-        const handleRequest = navigation ? classifyNavigation : generateCode;
-        const result = await handleRequest(text, {
-          apiKey: OPENROUTER_API_KEY,
-          model: OPENROUTER_MODEL,
-        });
+        const config = { apiKey: OPENROUTER_API_KEY, model: OPENROUTER_MODEL };
+        const result = navigation
+          ? await classifyNavigation(text, config, controls)
+          : await generateCode(text, config);
         if (!navigation && result.code === null && !isAccountIntent(result.responseCode)) {
           return send(res, 502, { ...result, error: 'OpenRouter did not generate code' });
         }
