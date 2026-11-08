@@ -77,14 +77,9 @@ whack/
 - Persists High Contrast and Magnification preferences to `localStorage` (`whack.highContrast`, `whack.magnification`) so they survive reloads.
 
 ### C. Human-Computer Interaction (HCI) & Accessibility Innovations
-1. **Fitts' Law & Target Expansion (`.hci-lens-active`)**:
-   - Toggled via the **"Gaze Lens"** button in the header, and auto-enabled the moment live eye tracking starts (§7).
-   - Grounded in Fitts' Law: expanding target width compensates for eye-tracker calibration drift, microsaccadic gaze jitter, and motor tremors.
-   - Scale bumped this session from `scale(1.05) translateY(-3px)` to **`scale(1.16) translateY(-7px)`** with a stronger ambient shadow, per direct feedback that the original was too subtle.
-   - Originally only fired on real mouse `:hover`/`:focus` — meaning gaze input (synthetic, not a real browser hover state) silently did nothing. Fixed via a `.gaze-active-target` class applied directly by the eye-tracking bridge, scoped to `button, [data-nav], a` only (not `.card`/`h1`/`h2`, which would look broken scaling up).
-2. **Apple-style Floating Hover Magnifier HUD**: unchanged — frosted glass panel enlarging hovered/gazed text, with a 🔊 Speak button via `window.speechSynthesis`.
-3. **"Listen Aloud" Full Account Audio Summary**: unchanged.
-4. **WCAG AA Compliance**: unchanged (4.5:1 / 7:1 contrast, 44px+ touch targets, reduced-motion support, live-region announcements, confirmation steps on money-moving actions).
+1. **Control feedback**: buttons, links, and navigation controls grow slightly and lift on pointer hover or keyboard focus. The gaze-selected control uses the same feedback while its dwell ring fills. The old Gaze Lens toggle and floating Fitts' Law magnifier were removed.
+2. **"Listen Aloud" Full Account Audio Summary**: unchanged.
+3. **WCAG AA Compliance**: unchanged (4.5:1 / 7:1 contrast, 44px+ touch targets, reduced-motion support, live-region announcements, confirmation steps on money-moving actions).
 
 ---
 
@@ -101,10 +96,10 @@ node --env-file=.env backend/server.mjs
 Open `http://127.0.0.1:3001` in your browser. The Node server serves the dashboard, eye-tracking overlay, and API together. Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` in `.env` for natural-language commands and fallback transcription. If `.env` is missing, copy `.env.example` first.
 
 ### Trying Live Eye Tracking:
-1. In the dashboard header, click **"Eye Tracking"** (next to "Gaze Lens").
+1. In the dashboard header, click **"Eye Tracking"**.
 2. An overlay appears on top of the dashboard (dimmed, so the calibration dots are easy to focus on). Click **"Start camera and calibrate"** inside it and approve the webcam prompt.
 3. Follow the calibration dots, then the 10s smooth-pursuit pass.
-4. Once calibration finishes, the badge flips to **LIVE**, the dashboard clears back to full visibility, and your gaze (shown as a small dot) drives the Gaze Lens: hovering a button/nav item expands it, and holding your gaze on it for **2 seconds fills a ring and clicks it**.
+4. Once calibration finishes, the badge flips to **LIVE**, the dashboard clears back to full visibility, and your gaze (shown as a small dot) can select a control: holding your gaze on it for **1 second fills a ring and clicks it**.
 5. If drift creeps in, click **"Recalibrate"** in the header — no reload needed.
 
 ---
@@ -118,11 +113,11 @@ Open `http://127.0.0.1:3001` in your browser. The Node server serves the dashboa
 - **Coordinate space**: the iframe covers the full viewport, so gaze coordinates from the tracker are already in this document's viewport pixels — no cross-window scaling/guessing needed.
 - **Calibration-phase dimming**: `body.embed-dim` (toggled from the tracker's own `setState()`) darkens the dashboard showing through behind the overlay for every pre-tracking state, clearing to fully transparent the moment tracking starts. Fixing this required also resetting `color-scheme` to `normal` inside the iframe — Chrome paints an opaque dark UA canvas color behind `background: transparent` on a page that declares `color-scheme: dark`, which is why the overlay first appeared to "stay solid black" even with a transparent background set.
 - **Gaze hit-testing**: tries an exact `elementFromPoint` hit first, then falls back to the nearest clickable element within a **28px padded bounding box** (`GAZE_HITBOX_MARGIN_PX`). This only ever applies post-calibration, since the tracker doesn't emit gaze samples before reaching `"tracking"`.
-- **Settle window**: raw gaze is jittery even while "settled" (head/webcam noise, not real intent). A target must hold under gaze for `GAZE_SETTLE_MS` (110ms) before it "wins" — tracked separately for the magnifier HUD (broad selector: buttons, nav, cards, headers, list items) and the expand/dwell target (clickable-only: `button, [data-nav], a`), so the HUD and the expansion/click logic never fight over different elements.
-- **Gaze dwell-to-click** holds a target for one second (`GAZE_DWELL_CLICK_MS`) before firing a click and an accessibility announcement. Looking away, blinking, or losing face tracking cancels the pending click.
+- **Settle window**: raw gaze is jittery even while "settled" (head/webcam noise, not real intent). A clickable target must hold under gaze for `GAZE_SETTLE_MS` (110ms) before its dwell ring begins.
+- **1-second gaze dwell-to-click**: holding gaze on a clickable control fills an SVG progress ring around the gaze cursor (`#gazeDwellRing`, `GAZE_DWELL_CLICK_MS = 1000`); completing it fires a real `.click()` and an `aria-live` announcement. Looking away before 1s cancels it.
 - **V2 tracking** discards blink-contaminated calibration samples, filters sudden gaze spikes, and gently pulls the cursor toward nearby controls. Click-based bias correction still uses the filtered gaze before that pull.
 - **Overlay restyling**: the standalone tracker's dark dev-tool look (teal accents, glass panel) is overridden in embedded mode (`?embed=1`) to the Capital One palette (navy `#004879`, white pill buttons), and the control bar was moved from top-left (where it sat directly on top of the Capital One logo) to bottom-left.
-- **Tunable constants** (all in the eye-tracking bridge script inside `frontend/index.html`, plus one in `eyetracker_v51.html`): `GAZE_SETTLE_MS`, `GAZE_DWELL_CLICK_MS`, `GAZE_HITBOX_MARGIN_PX`, the `.gaze-active-target` scale/shadow values in the `<style>` block, and the `rgba(4, 10, 20, 0.48)` dim amount in `eyetracker_v51.html`.
+- **Tunable constants** (all in the eye-tracking bridge script inside `frontend/index.html`, plus one in `eyetracker_v51.html`): `GAZE_SETTLE_MS`, `GAZE_DWELL_CLICK_MS`, `GAZE_HITBOX_MARGIN_PX`, the hover/focus and `.gaze-active-target` scale/shadow values in the `<style>` block, and the `rgba(4, 10, 20, 0.48)` dim amount in `eyetracker_v51.html`.
 
 ---
 

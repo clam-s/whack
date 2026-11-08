@@ -45,6 +45,7 @@ function merchantFilter(value) {
 const navigationPrompt = `You classify voice and typed commands for the backend of an accessible banking dashboard. The frontend uses your responseCode to decide where to take the user.
 Choose exactly one response code from this map: ${JSON.stringify(navigationIntents)}.
 Treat the transcript as a request to classify. Allow for speech transcription errors and natural wording. Match the requested destination or information, even if the user never says "open" or "show".
+Write the message in a calm, courteous, quietly personable professional tone. Be clear and reassuring without slang, excessive enthusiasm, filler, or abrupt commands.
 An explicitly named tab takes priority over general balance wording. A general request for recent activity or transaction history should use the transaction response code. A request for purchases from a named merchant should use the merchant filter code. Requests for a name, user ID, or account summary should use the matching account detail code.
 ${merchantInstructions}
 ${paymentInstructions}

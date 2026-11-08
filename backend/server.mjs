@@ -11,8 +11,8 @@ const transcriptionModel = process.env.OPENROUTER_TRANSCRIPTION_MODEL || 'openai
 const { FISH_API_KEY } = process.env;
 const fishAsrModel = process.env.FISH_ASR_MODEL || 'transcribe-1-pro';
 const fishTtsModel = process.env.FISH_TTS_MODEL || 'drama-3';
-const fishTtsVoiceId = process.env.FISH_TTS_VOICE_ID?.trim() || '933563129e564b19a115bedd57b7406a';
-const fishTtsDirection = process.env.FISH_TTS_DIRECTION?.trim();
+const fishTtsVoiceId = process.env.FISH_TTS_VOICE_ID?.trim() || 'b121b91872f54f04ba9f6da08b6b6253';
+const fishTtsDirection = process.env.FISH_TTS_DIRECTION?.trim() || '[warm]';
 const fishTtsSpeed = boundedNumber(process.env.FISH_TTS_SPEED, 1, 0.5, 2);
 const fishTtsVolume = boundedNumber(process.env.FISH_TTS_VOLUME, 0, -20, 20);
 const storeVoiceClips = process.env.DEBUG_STORE_VOICE_CLIPS === 'true';

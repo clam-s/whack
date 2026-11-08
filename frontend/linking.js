@@ -203,10 +203,10 @@
     if (voicePaymentPending && lastPendingConfirmation && !state.pendingConfirmation) {
       if (state.notification?.type === 'success') {
         commandStatus.textContent = 'Demo payment complete.';
-        void window.speakAgentStatus?.('The demo payment is complete.');
+        void window.speakAgentStatus?.('Your demo payment has been completed.');
       } else if (state.notification?.type === 'info') {
         commandStatus.textContent = 'Demo payment cancelled.';
-        void window.speakAgentStatus?.('The demo payment was cancelled.');
+        void window.speakAgentStatus?.('The demo payment was cancelled as requested.');
       }
       voicePaymentPending = false;
       window.setVoiceState('done');
@@ -276,14 +276,14 @@
         window.appStore.requestTransfer(from, to, draft.amount);
       }
       voicePaymentPending = true;
-      commandStatus.textContent = 'I prepared the payment for review. Confirm or cancel it in the dialog, or say “confirm payment” or “cancel payment”.';
+      commandStatus.textContent = 'Your payment is ready for review. Confirm or cancel it in the dialog, or say “confirm payment” or “cancel payment” when you are ready.';
       window.setVoiceState('confirming');
       // Keep recipient, amount, and memo out of Fish Audio TTS. The accessible confirmation dialog
       // presents the exact details locally; Fish speaks only this generic status prompt.
-      void window.speakAgentStatus?.('I prepared the demo payment for review. Please check the details, then say confirm payment or cancel payment.');
+      void window.speakAgentStatus?.('I have prepared the demo payment for your review. Please check the details, then confirm or cancel whenever you are ready.');
     } catch (error) {
       commandStatus.textContent = error.message;
-      void window.speakAgentStatus?.('I could not prepare that payment. Please review the message on screen.');
+      void window.speakAgentStatus?.('I could not prepare that payment just now. Please review the message on screen and try again.');
     }
     return true;
   }
@@ -304,9 +304,9 @@
       window.appStore.cancelPendingAction();
       return true;
     }
-    commandStatus.textContent = 'The payment is still waiting for confirmation. Say “confirm payment” or “cancel payment”.';
+    commandStatus.textContent = 'The payment is still awaiting your review. Say “confirm payment” or “cancel payment” when you are ready.';
     window.setVoiceState('confirming');
-    void window.speakAgentStatus?.('The payment is still waiting. Say confirm payment or cancel payment.');
+    void window.speakAgentStatus?.('The payment is still awaiting your review. You can confirm or cancel whenever you are ready.');
     return true;
   }
 
@@ -446,7 +446,7 @@
     if (handleVoicePaymentConfirmation(text, fromVoice)) return;
     if (runLocal(text, fromVoice)) {
       if (fromVoice) logVoiceActivity('Handled by a local dashboard action.');
-      if (fromVoice && !voicePaymentPending) void window.speakAgentStatus?.('Done. I completed that dashboard request.');
+      if (fromVoice && !voicePaymentPending) void window.speakAgentStatus?.('Certainly. I have completed that dashboard request.');
       return;
     }
     sendButton.disabled = true;
@@ -465,7 +465,7 @@
             describeButton(selected.button) === selected.label) {
           activateButton(selected.button);
           if (fromVoice) logVoiceActivity('Dashboard control selected.');
-          void window.speakAgentStatus?.('Done. I selected that control.');
+          void window.speakAgentStatus?.('Certainly. I have selected that option for you.');
         } else {
           commandStatus.textContent = 'That control is no longer available. Try the command again.';
         }
@@ -480,7 +480,7 @@
         if (fromVoice) logVoiceActivity('No matching dashboard action was found.');
       } else if (!voicePaymentPending) {
         if (fromVoice) logVoiceActivity('Dashboard action completed.');
-        void window.speakAgentStatus?.('Done. I completed that dashboard request.');
+        void window.speakAgentStatus?.('Of course. I have completed that dashboard request.');
       }
     } catch (error) {
       commandStatus.textContent = error.message;

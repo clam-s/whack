@@ -141,31 +141,24 @@
       animation: wave 1.2s ease-in-out infinite;
     }
 
-    /* HCI Target Expansion & Gaze Magnifier (Fitts' Law) */
-    .hci-lens-active button,
-    .hci-lens-active a,
-    .hci-lens-active .gaze-target,
-    .hci-lens-active [data-nav] {
-      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease !important;
-      will-change: transform, box-shadow;
+    /* Give pointer and keyboard users clear, consistent feedback on every control. */
+    button, a, [data-nav] {
+      transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
     }
-    /* .gaze-active-target is applied by the live eye tracking bridge (not a real :hover, since
-       synthetic gaze input never sets the browser's native hover state) so gaze lands the same
-       expansion mouse hover/focus already gets. */
-    .hci-lens-active button:hover,
-    .hci-lens-active button:focus,
-    .hci-lens-active a:hover,
-    .hci-lens-active a:focus,
-    .hci-lens-active [data-nav]:hover,
-    .hci-lens-active [data-nav]:focus,
-    .hci-lens-active .gaze-target:hover,
-    .hci-lens-active .gaze-target:focus-within,
-    .hci-lens-active .gaze-active-target {
-      transform: scale(1.16) translateY(-7px) !important;
-      /* Premium Apple VisionOS-inspired soft ambient depth & glass elevation */
-      box-shadow: 0 26px 45px -10px rgba(0, 30, 60, 0.24), 0 10px 20px -4px rgba(0, 30, 60, 0.14), 0 0 0 1px rgba(255, 255, 255, 0.85) inset !important;
-      z-index: 25 !important;
-      position: relative !important;
+    @media (hover: hover) {
+      button:not(:disabled):hover, a:hover, [data-nav]:hover {
+        position: relative;
+        z-index: 25;
+        transform: scale(1.05) translateY(-2px);
+        box-shadow: 0 8px 18px -8px rgba(0, 30, 60, 0.32);
+      }
+    }
+    button:not(:disabled):focus-visible, a:focus-visible, [data-nav]:focus-visible,
+    .gaze-active-target {
+      position: relative;
+      z-index: 25;
+      transform: scale(1.07) translateY(-3px);
+      box-shadow: 0 10px 22px -8px rgba(0, 30, 60, 0.32);
     }
 
     /* Gaze Dwell-to-Click Ring: fills clockwise over the dwell duration set in JS
@@ -226,28 +219,13 @@
           <span class="hidden sm:inline">Contrast</span>
         </button>
 
-        <!-- HCI Gaze Magnifier & Target Expansion Toggle (Apple Fisheye / Fitts' Law) -->
-        <button
-          data-voice-label="Gaze Lens" id="hciLensToggle"
-          class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-100 text-c1-navy font-bold text-xs min-h-[44px] transition"
-          aria-pressed="false"
-          aria-label="Toggle HCI Gaze Magnification and Target Expansion"
-          title="Fitts' Law Target Expansion: Magnifies targets and brings up Apple-style hover lens for eye tracking"
-        >
-          <svg class="w-4 h-4 text-c1-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
-          </svg>
-          <span>Gaze Lens</span>
-          <span id="hciLensBadge" class="bg-slate-200 text-[10px] font-mono px-1 py-0.5 rounded-xs text-slate-700">OFF</span>
-        </button>
-
-        <!-- Live Webcam Eye Tracking: drives the Gaze Lens with real gaze instead of the mouse -->
+        <!-- Live Webcam Eye Tracking -->
         <button
           data-voice-label="Eye Tracking" id="liveEyeTrackingToggle"
           class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-100 text-c1-navy font-bold text-xs min-h-[44px] transition"
           aria-pressed="false"
           aria-label="Toggle live webcam eye tracking"
-          title="Experimental: use webcam gaze tracking in place of mouse hover to drive the Gaze Lens"
+          title="Use webcam gaze tracking to select dashboard controls"
         >
           <svg class="w-4 h-4 text-c1-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -586,35 +564,6 @@
     <circle id="gazeCursorCore" cx="22" cy="22" r="4" fill="#fbbf24" />
   </svg>
 
-  <!-- ================= APPLE-STYLE HOVER TEXT & GAZE MAGNIFIER HUD ================= -->
-  <aside
-    id="hciMagnifierHud"
-    class="hidden fixed bottom-6 right-6 z-40 bg-slate-900/90 text-white border border-white/20 p-4 rounded-2xl shadow-2xl max-w-md w-full transition-all duration-200 backdrop-blur-xl"
-    style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);"
-    aria-live="polite"
-    aria-label="HCI Gaze Magnification Lens"
-  >
-    <div class="flex items-center justify-between border-b border-white/10 pb-2 mb-2.5">
-      <div class="flex items-center space-x-2">
-        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-        <span class="text-[10px] font-medium uppercase tracking-wider text-slate-300">Gaze Focus &bull; Fitts' Law</span>
-      </div>
-      <div class="flex items-center space-x-2">
-        <button id="speakMagnifiedBtn" class="text-[11px] font-semibold px-2.5 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg transition flex items-center space-x-1" title="Speak this text aloud">
-          <span>🔊 Speak</span>
-        </button>
-        <button id="closeHudBtn" class="text-slate-400 hover:text-white text-base leading-none p-1" aria-label="Close Magnifier HUD">&times;</button>
-      </div>
-    </div>
-    <div id="hciMagnifiedTargetContent" class="text-lg sm:text-xl font-bold text-white tracking-tight leading-snug break-words">
-      Hover or glance at any element...
-    </div>
-    <div class="mt-2.5 text-[10px] text-slate-400 font-mono flex items-center justify-between">
-      <span id="hciTargetCategory">Type: UI Element</span>
-      <span>Target Expanded</span>
-    </div>
-  </aside>
-
   <!-- ================= FOOTER LANDMARK ================= -->
   <footer class="bg-c1-darkNavy text-slate-300 border-t border-white/10 mt-auto py-4 px-4 text-center text-xs" role="contentinfo">
     <div class="max-w-[1720px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
@@ -681,48 +630,14 @@
       toggleHighContrast();
     });
 
-    // --- HCI Gaze Lens & Fitts' Law Magnification ---
-    let hciLensActive = false;
-    const hciLensToggle = document.getElementById('hciLensToggle');
-    const hciLensBadge = document.getElementById('hciLensBadge');
-    const hciMagnifierHud = document.getElementById('hciMagnifierHud');
-    const hciMagnifiedTargetContent = document.getElementById('hciMagnifiedTargetContent');
-    const hciTargetCategory = document.getElementById('hciTargetCategory');
-    const speakMagnifiedBtn = document.getElementById('speakMagnifiedBtn');
-    const closeHudBtn = document.getElementById('closeHudBtn');
+    // --- Live eye tracking and gaze dwell selection ---
     const speakAccountBtn = document.getElementById('speakAccountBtn');
-
-    function toggleHciLens(forceState) {
-      hciLensActive = typeof forceState === 'boolean' ? forceState : !hciLensActive;
-      document.body.classList.toggle('hci-lens-active', hciLensActive);
-      hciLensToggle.setAttribute('aria-pressed', String(hciLensActive));
-
-      if (hciLensActive) {
-        hciLensBadge.textContent = 'ACTIVE';
-        hciLensBadge.className = 'bg-amber-400 text-slate-950 font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-xs shadow-xs';
-        hciMagnifierHud.classList.remove('hidden');
-        liveAnnouncer.textContent = "HCI Gaze Lens activated. Elements will expand on glance and hover text magnification is active.";
-      } else {
-        hciLensBadge.textContent = 'OFF';
-        hciLensBadge.className = 'bg-slate-200 text-slate-700 font-mono text-[10px] px-1 py-0.5 rounded-xs';
-        hciMagnifierHud.classList.add('hidden');
-        liveAnnouncer.textContent = "HCI Gaze Lens deactivated.";
-      }
-    }
-
-    hciLensToggle.addEventListener('click', () => toggleHciLens());
-    closeHudBtn?.addEventListener('click', () => toggleHciLens(false));
 
     // --- Live Webcam Eye Tracking Bridge (frontend/eyeTracking/eyetracker_v51.html) ---
     // Same-origin iframe, so the tracker calls window.parent.__onExternalGaze / __onTrackerState
     // directly instead of postMessage. See the iframe element above for the click-through rationale.
     let liveEyeTrackingActive = false;
-    // Hover target: the broader set the mouse-driven magnifier already understands (drives only
-    // the HUD text, via a dispatched mouseover -- never scaled up).
-    let hoverTarget = null, pendingHoverTarget = null, pendingHoverSince = 0;
-    // Expand/dwell target: real clickable controls only. This is the ONE thing that gets the
-    // Fitts' Law scale-up and the thing dwell-to-click acts on -- same element, same settle timer,
-    // so "the button that grows" and "the button a 2s gaze clicks" are never out of sync.
+    // Gaze target: clickable controls only. The same target grows and receives dwell-to-click.
     let expandTarget = null, pendingExpandTarget = null, pendingExpandSince = 0;
     let dwellTimer = null;
     const liveEyeTrackingToggle = document.getElementById('liveEyeTrackingToggle');
@@ -734,13 +649,10 @@
     const gazeDwellRing = document.getElementById('gazeDwellRing');
 
     // Raw gaze is jittery even while "settled" (head/webcam noise, not real intent), so a target
-    // must hold still under the gaze for GAZE_SETTLE_MS before it's acted on. Without this, the
-    // magnifier HUD and target expansion flickered between neighboring elements -- this was most
-    // of what read as "unreliable."
+    // must hold still under gaze for GAZE_SETTLE_MS before it is selected.
     const GAZE_SETTLE_MS = 110;
     const GAZE_DWELL_CLICK_MS = 1000;
     const GAZE_DWELL_RING_CIRCUMFERENCE = 106.8; // 2 * PI * r(17), matches the SVG ring above
-    const GAZE_HOVER_SELECTOR = 'button, [data-nav], .card, h1, h2, a, [role="listitem"]';
     const GAZE_CLICKABLE_SELECTOR = 'button, [data-nav], a';
     // Gaze only ever arrives once the tracker has finished calibrating (it doesn't call onGaze
     // before reaching its "tracking" state), so this generous hitbox applies specifically to
@@ -804,7 +716,6 @@
         liveEyeTrackingFrame.classList.remove('hidden');
         liveEyeTrackingFrame.style.pointerEvents = 'auto'; // interactive until calibration finishes
         recalibrateEyeTrackingBtn.classList.remove('hidden');
-        if (!hciLensActive) toggleHciLens(true);
         liveAnnouncer.textContent = 'Live eye tracking starting. Use the overlay to start the camera and calibrate.';
       } else {
         liveEyeTrackingBadge.textContent = 'OFF';
@@ -813,8 +724,6 @@
         liveEyeTrackingFrame.src = 'about:blank';
         gazeCursorDot.classList.add('hidden');
         recalibrateEyeTrackingBtn.classList.add('hidden');
-        hoverTarget = null;
-        pendingHoverTarget = null;
         pendingExpandTarget = null;
         clearGazeExpansion();
         liveAnnouncer.textContent = 'Live eye tracking stopped.';
@@ -850,7 +759,7 @@
         liveEyeTrackingBadge.textContent = 'LIVE';
         liveEyeTrackingBadge.className = 'bg-emerald-400 text-slate-950 font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-xs shadow-xs';
         liveEyeTrackingFrame.style.pointerEvents = 'none'; // hand the page back to the dashboard
-        liveAnnouncer.textContent = 'Eye tracking calibrated. Gaze now drives the Gaze Lens.';
+        liveAnnouncer.textContent = 'Eye tracking calibrated. Hold your gaze on a control to select it.';
       } else {
         liveEyeTrackingFrame.style.pointerEvents = 'auto';
         gazeCursorDot.classList.add('hidden');
@@ -868,7 +777,6 @@
     window.__onExternalGaze = function (x, y, fixating) {
       if (!liveEyeTrackingActive) return;
       if (x === null || y === null) {
-        pendingHoverTarget = null;
         pendingExpandTarget = null;
         clearGazeExpansion();
         return;
@@ -878,19 +786,7 @@
       gazeCursorDot.style.top = `${y}px`;
       gazeCursorCore.setAttribute('fill', fixating ? '#34d399' : '#fbbf24');
 
-      if (!hciLensActive) return;
       const now = performance.now();
-
-      // Magnifier HUD text: the broader set (cards, headers, list items too), settled the same way
-      // so the HUD text doesn't flicker, but never scaled up. Uses the expanded post-calibration
-      // hitbox (see findGazeTarget) so noisy gaze doesn't have to land pixel-perfectly.
-      const hoverCandidate = findGazeTarget(x, y, GAZE_HOVER_SELECTOR);
-      if (hoverCandidate !== pendingHoverTarget) { pendingHoverTarget = hoverCandidate; pendingHoverSince = now; }
-      if (hoverCandidate !== hoverTarget && now - pendingHoverSince >= GAZE_SETTLE_MS) {
-        hoverTarget = hoverCandidate;
-        if (hoverTarget) hoverTarget.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }));
-      }
-
       // Expansion + dwell-to-click: only real clickable controls (button, [data-nav], a).
       const expandCandidate = findGazeTarget(x, y, GAZE_CLICKABLE_SELECTOR);
       if (expandCandidate !== pendingExpandTarget) { pendingExpandTarget = expandCandidate; pendingExpandSince = now; }
@@ -952,12 +848,6 @@
       }
     };
 
-    // Speak Magnified Item
-    speakMagnifiedBtn?.addEventListener('click', () => {
-      const text = hciMagnifiedTargetContent.textContent.trim();
-      speakText(text);
-    });
-
     // Speak Entire Account Summary
     speakAccountBtn?.addEventListener('click', () => {
       const st = getState();
@@ -967,48 +857,6 @@
       const msg = `Hello LP. Here is your Capital One account overview. Your available checking balance is $${ch.balance.toFixed(2)}. Your Venture X credit card balance is $${card.balance.toFixed(2)} with $${card.availableCredit.toFixed(2)} in available credit, and your card is currently ${card.locked ? 'locked' : 'active'}. You have an upcoming auto loan payment of $${loan.monthlyPayment.toFixed(2)} due soon.`;
       speakText(msg);
       liveAnnouncer.textContent = msg;
-    });
-
-    // Hover / Glance Tracker for Magnifier HUD
-    document.addEventListener('mouseover', (e) => {
-      if (!hciLensActive) return;
-
-      const target = e.target.closest('button, [data-nav], .card, h1, h2, a, [role="listitem"]');
-      if (!target || target.closest('#hciMagnifierHud') || target.closest('header')) return;
-
-      let displayText = '';
-      let category = 'UI Element';
-
-      if (target.dataset && target.dataset.nav) {
-        category = 'Navigation Tab';
-        displayText = target.textContent.trim();
-      } else if (target.tagName === 'H1' || target.tagName === 'H2') {
-        category = 'Header Title';
-        displayText = target.textContent.trim();
-      } else if (target.getAttribute('role') === 'listitem') {
-        category = 'Transaction Entry';
-        displayText = target.innerText.replace(/\n+/g, ' — ').trim();
-      } else {
-        category = target.tagName.toLowerCase();
-        displayText = target.innerText ? target.innerText.slice(0, 140).replace(/\n+/g, ' ').trim() : target.textContent.trim();
-      }
-
-      if (displayText) {
-        hciMagnifiedTargetContent.textContent = displayText;
-        hciTargetCategory.textContent = `Type: ${category}`;
-      }
-    });
-
-    // Also support Keyboard Focus tracking for Magnifier HUD
-    document.addEventListener('focusin', (e) => {
-      if (!hciLensActive) return;
-      const target = e.target;
-      if (!target || target.closest('#hciMagnifierHud, #linkedAccountDialog')) return;
-      const text = target.innerText || target.getAttribute('aria-label') || target.value || target.textContent;
-      if (text) {
-        hciMagnifiedTargetContent.textContent = text.slice(0, 140).replace(/\n+/g, ' ').trim();
-        hciTargetCategory.textContent = `Focused: ${target.tagName.toLowerCase()}`;
-      }
     });
 
     // --- Voice Assistant Panel Toggle (Preview) ---
