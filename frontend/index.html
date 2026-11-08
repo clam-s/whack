@@ -342,6 +342,7 @@
           <button type="button" data-quick-command="open savings" class="rounded border px-3 min-h-[44px]">Open savings</button>
           <button type="button" data-quick-command="show recent transactions" class="rounded border px-3 min-h-[44px]">Recent transactions</button>
         </div>
+        <p class="text-sm text-slate-600">Try “show transactions from Spotify”, “transfer 50 dollars from checking to savings”, or “send 20 dollars to Alex Smith”.</p>
       </form>
       <p id="voiceCommandStatus" class="text-sm" role="status"></p>
 
@@ -1046,12 +1047,18 @@
         const conf = state.pendingConfirmation;
         confirmModalHeading.textContent = conf.title;
         confirmModalSummary.textContent = conf.summary;
-        confirmModalDetails.innerHTML = conf.details.map(d => `
-          <div class="py-2.5 px-3 flex justify-between">
-            <span class="text-slate-500 font-medium">${d.label}</span>
-            <span class="text-slate-900 font-bold">${d.value}</span>
-          </div>
-        `).join('');
+        confirmModalDetails.replaceChildren(...conf.details.map(({ label, value }) => {
+          const row = document.createElement('div');
+          row.className = 'py-2.5 px-3 flex justify-between';
+          const title = document.createElement('span');
+          title.className = 'text-slate-500 font-medium';
+          title.textContent = label;
+          const detail = document.createElement('span');
+          detail.className = 'text-slate-900 font-bold';
+          detail.textContent = value;
+          row.append(title, detail);
+          return row;
+        }));
         confirmationModal.classList.remove('hidden');
         confirmActionBtn.focus();
       } else {
@@ -1096,6 +1103,9 @@
         case 'upcoming-all':
           renderUpcomingAllView(state);
           break;
+        case 'merchants':
+          renderMerchantsView(state);
+          break;
         case 'recent-all':
           renderRecentAllView(state);
           break;
@@ -1112,6 +1122,10 @@
           liveAnnouncer.textContent = `Navigated to ${heading.textContent}`;
         }
       }, 50);
+    }
+
+    function escapeTransactionDescription(description) {
+      return description.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
     }
 
     // --- Helper: Brand Logo Generator for Transactions ---
@@ -1168,8 +1182,8 @@
             <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 space-y-4">
               <div class="flex items-center justify-between">
                 <h2 class="text-sm font-bold text-slate-800 tracking-tight">Recent Transactions</h2>
-                <button data-nav="recent-all" class="text-xs font-bold text-c1-navy hover:underline uppercase tracking-wider min-h-[44px] flex items-center">
-                  View All (${state.transactions.length}) &gt;
+                <button data-nav="merchants" class="text-xs font-bold text-c1-navy hover:underline uppercase tracking-wider min-h-[44px] flex items-center">
+                  View All &gt;
                 </button>
               </div>
 
@@ -1179,7 +1193,7 @@
                     <div class="flex items-center space-x-3">
                       ${getTxIcon(t.icon, t.description)}
                       <div>
-                        <div class="font-bold text-slate-800 text-sm">${t.description}</div>
+                        <div class="font-bold text-slate-800 text-sm">${escapeTransactionDescription(t.description)}</div>
                         <div class="text-slate-600 text-[11px]">${t.category}</div>
                       </div>
                     </div>
@@ -1322,7 +1336,7 @@
               ${savTx.length ? savTx.map(t => `
                 <div class="py-3 px-4 flex items-center justify-between">
                   <div>
-                    <div class="font-bold text-slate-800">${t.description}</div>
+                    <div class="font-bold text-slate-800">${escapeTransactionDescription(t.description)}</div>
                     <div class="text-slate-500 text-[11px]">${formatDate(t.date)}</div>
                   </div>
                   <div class="font-bold text-emerald-700 text-sm">+${formatCurrency(t.amount)}</div>
@@ -1391,7 +1405,7 @@
               ${cardTx.map(t => `
                 <div class="py-3 px-4 flex items-center justify-between">
                   <div>
-                    <div class="font-bold text-slate-800">${t.description}</div>
+                    <div class="font-bold text-slate-800">${escapeTransactionDescription(t.description)}</div>
                     <div class="text-slate-500 text-[11px]">${t.category} &bull; ${formatDate(t.date)}</div>
                   </div>
                   <div class="font-bold text-slate-900 text-sm">${formatCurrency(t.amount)}</div>
@@ -1619,6 +1633,10 @@
         </div>
       `;
 
+      const { recipient: draftRecipient, amount: draftAmount } = state.pageParams;
+      document.getElementById('zelleRecipient').value = draftRecipient ?? '';
+      document.getElementById('zelleAmount').value = draftAmount ?? '';
+
       document.getElementById('sendMoneyForm')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const recipient = document.getElementById('zelleRecipient').value;
@@ -1685,6 +1703,11 @@
           </form>
         </div>
       `;
+
+      const { from: draftFrom, to: draftTo, amount: draftAmount } = state.pageParams;
+      if (draftFrom) document.getElementById('transferFrom').value = draftFrom;
+      if (draftTo) document.getElementById('transferTo').value = draftTo;
+      document.getElementById('transferAmount').value = draftAmount ?? '';
 
       document.getElementById('transferForm')?.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -1939,7 +1962,7 @@
                 <div class="flex items-center space-x-3">
                   ${getTxIcon(t.icon, t.description)}
                   <div>
-                    <div class="font-bold text-slate-800 text-sm">${t.description}</div>
+                    <div class="font-bold text-slate-800 text-sm">${escapeTransactionDescription(t.description)}</div>
                     <div class="text-slate-500 text-[11px]">${t.category} &bull; Account: ${t.accountId}</div>
                   </div>
                 </div>
@@ -1961,6 +1984,61 @@
           r.style.display = r.textContent.toLowerCase().includes(query) ? 'flex' : 'none';
         });
       });
+    }
+
+    function renderMerchantsView(state) {
+      const query = state.pageParams.merchant ?? '';
+      // Match common transcription differences such as "McDonalds" and "Chick Fil A".
+      const normalize = (name) => name.normalize('NFKD').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+      const search = normalize(query);
+      const transactions = state.transactions.filter((transaction) =>
+        transaction.amount < 0 && transaction.category !== 'Transfer' &&
+        (!query || (search && normalize(transaction.description).includes(search)))
+      );
+
+      viewContainer.innerHTML = `
+        <section class="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+          <h1 class="text-xl font-extrabold text-c1-navy">Merchant transactions</h1>
+          <p class="text-sm text-slate-600">Filter dashboard purchases by merchant name.</p>
+          <form id="merchantFilterForm" class="flex flex-wrap items-end gap-2">
+            <div class="space-y-1">
+              <label for="merchantQuery" class="block font-semibold text-sm">Merchant name</label>
+              <input id="merchantQuery" type="search" placeholder="e.g. Spotify"
+                class="w-full rounded border border-slate-400 px-3 min-h-[44px]">
+            </div>
+            <button type="submit" class="rounded bg-c1-navy text-white px-4 min-h-[44px]">Filter</button>
+            <button type="button" data-nav="merchants" class="rounded border border-slate-400 px-4 min-h-[44px]">Clear filter</button>
+          </form>
+          <p id="merchantResultCount" class="text-sm" role="status"></p>
+          <ul id="merchantResults" class="divide-y divide-slate-200"></ul>
+          <button type="button" data-nav="recent-all" class="text-sm font-semibold text-c1-navy underline min-h-[44px]">View all recent transactions</button>
+        </section>
+      `;
+
+      const input = document.getElementById('merchantQuery');
+      input.value = query;
+      document.getElementById('merchantFilterForm').addEventListener('submit', (event) => {
+        event.preventDefault();
+        navigateTo('merchants', { merchant: input.value.trim() });
+      });
+
+      const count = transactions.length;
+      const label = count === 1 ? 'purchase' : 'purchases';
+      document.getElementById('merchantResultCount').textContent = query
+        ? `${count} ${label} matching “${query}”.`
+        : `${count} ${label} across all merchants.`;
+      const rows = transactions.map((transaction) => {
+        const row = document.createElement('li');
+        row.className = 'py-3 flex flex-wrap justify-between gap-2 text-sm';
+        const merchant = document.createElement('span');
+        merchant.className = 'font-semibold';
+        merchant.textContent = transaction.description;
+        const details = document.createElement('span');
+        details.textContent = `${formatDate(transaction.date)} · ${transaction.accountId} · ${formatCurrency(transaction.amount)}`;
+        row.append(merchant, details);
+        return row;
+      });
+      document.getElementById('merchantResults').replaceChildren(...rows);
     }
 
     // ========================================================================
