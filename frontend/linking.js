@@ -1,14 +1,13 @@
 (() => {
-  const { getState, subscribe, navigateTo, toggleHighContrast } = window.appStore;
+  const { getState, subscribe, navigateTo } = window.appStore;
   const byId = (id) => document.getElementById(id);
   const command = byId('voiceCommand');
   const commandForm = byId('voiceCommandForm');
   const commandStatus = byId('voiceCommandStatus');
   const sendButton = byId('sendVoiceCommand');
   const microphone = byId('voiceMicrophone');
-  const testVoiceButton = byId('testAgentVoice');
   const voiceActivityLog = byId('voiceActivityLog');
-  const drawer = byId('voiceAssistantDrawer');
+  const voiceAssistantButton = byId('voiceAssistantBtn');
   const accountDialog = byId('linkedAccountDialog');
   const accountForm = byId('linkedAccountForm');
   const accountStatus = byId('linkedAccountStatus');
@@ -25,6 +24,19 @@
   let lastPendingConfirmation = false;
   let submittedFromVoice = false;
   let pushToTalkHeld = false;
+  let queuedVoicePayments = [];
+
+  function showAssistantNotice(message, state = 'info') {
+    if (message) commandStatus.textContent = message;
+  }
+
+  void window.backendFetch('/api/health').then(async (response) => {
+    const status = await response.json();
+    if (!response.ok) throw new Error(status.error || 'Local backend health check failed.');
+    if (!status.openRouterConfigured) {
+      showAssistantNotice('Backend is running, but OpenRouter is missing its API key or model.', 'error');
+    }
+  }).catch((error) => showAssistantNotice(error.message, 'error'));
 
   function logVoiceActivity(message) {
     if (!voiceActivityLog) return;
@@ -49,10 +61,7 @@
       logVoiceActivity(`Fish speech could not play: ${detail.message || 'unknown error'}.`);
     }
   });
-  testVoiceButton?.addEventListener('click', () => {
-    logVoiceActivity('Starting the Fish voice check.');
-    void window.speakAgentStatus?.('Hello. This is Chloe, your voice assistant.');
-  });
+  voiceAssistantButton.addEventListener('click', () => microphone.click());
 
   function preference(key, value) {
     try {
@@ -63,8 +72,6 @@
     }
   }
 
-  if (preference('whack.highContrast') && !getState().highContrast) toggleHighContrast();
-  byId('highContrastToggle').addEventListener('click', () => preference('whack.highContrast', getState().highContrast));
   const magnify = byId('magnificationToggle');
   document.body.classList.toggle('magnification', Boolean(preference('whack.magnification')));
   magnify.setAttribute('aria-pressed', String(document.body.classList.contains('magnification')));
@@ -75,15 +82,14 @@
   });
 
   async function post(path, body, signal) {
-    if (location.protocol === 'file:') throw new Error('Open the dashboard through the Node server to use the backend.');
-    const response = await fetch(path, {
+    const response = await window.backendFetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal,
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.message || data.error || `HTTP ${response.status}`);
+    if (!response.ok) throw new Error(data.error || data.message || `HTTP ${response.status}`);
     return data;
   }
 
@@ -96,7 +102,7 @@
     accountPanel.hidden = !account || !['checking', 'account-details', 'recent-all'].includes(page);
     accountForm.hidden = Boolean(account);
     signOut.hidden = !account;
-    accountButton.textContent = account ? 'Demo account' : 'Demo account sign-in';
+    accountButton.textContent = account ? 'Linked account' : 'Account sign-in';
     byId('linkedAccountName').textContent = account ? `${account.name} · ${account.userId}` : '';
     byId('linkedAccountBalance').textContent = account ? `Available balance: ${formatAmount(account.balanceMinor)}` : '';
     const rows = account?.transactions.map((item) => {
@@ -128,14 +134,14 @@
     try {
       account = await post('/api/account', credentials, request.signal);
       renderAccount();
-      accountStatus.textContent = 'Signed in. Open Checking or Recent Transactions to see your linked demo data.';
+      accountStatus.textContent = 'Account connected. Open Checking or Recent Transactions to view your activity.';
       if (accountDialog.open) signOut.focus();
-      if (!automatic && readAloud) window.speakText('Signed in. Your linked demo account is ready.');
+      if (!automatic && readAloud) window.speakText('Signed in. Your account is ready.');
     } catch (error) {
       if (!request.signal.aborted) {
         accountStatus.textContent = error.message;
         if (automatic && !accountDialog.open) {
-          commandStatus.textContent = 'Automatic demo sign-in failed. Use Demo account sign-in to try again.';
+          commandStatus.textContent = 'Account sign-in failed. Please try again.';
         }
       }
     } finally {
@@ -186,7 +192,7 @@
       rewards: () => ` Sample rewards: ${rewards.miles.toLocaleString()} miles.`,
     };
     const summary = account && ['checking', 'recent-all', 'account-details'].includes(page)
-      ? ` Linked demo balance: ${formatAmount(account.balanceMinor)}. ${account.transactions.length} transactions.` : '';
+      ? ` Linked balance: ${formatAmount(account.balanceMinor)}. ${account.transactions.length} transactions.` : '';
     window.speakText(title + '.' + (summary || sampleSummaries[page]?.() || ''));
   }
 
@@ -210,11 +216,21 @@
     previousPage = state.currentPage;
     if (voicePaymentPending && lastPendingConfirmation && !state.pendingConfirmation) {
       if (state.notification?.type === 'success') {
-        commandStatus.textContent = 'Demo payment complete.';
-        void window.speakAgentStatus?.('Your demo payment has been completed.');
+        commandStatus.textContent = 'Payment entry recorded in this dashboard.';
+        if (queuedVoicePayments.length) {
+          const remaining = queuedVoicePayments.length;
+          void window.speakAgentStatus?.(`That payment entry is recorded. ${remaining} more request${remaining === 1 ? '' : 's'} need your review.`);
+          const next = queuedVoicePayments.shift();
+          voicePaymentPending = false;
+          queueMicrotask(() => prepareVoicePayment(next.page, next.draft, false));
+          lastPendingConfirmation = Boolean(state.pendingConfirmation);
+          return;
+        }
+        void window.speakAgentStatus?.('The payment entry has been recorded in your transaction history.');
       } else if (state.notification?.type === 'info') {
-        commandStatus.textContent = 'Demo payment cancelled.';
-        void window.speakAgentStatus?.('The demo payment was cancelled as requested.');
+        commandStatus.textContent = 'Payment cancelled.';
+        queuedVoicePayments = [];
+        void window.speakAgentStatus?.('The payment was cancelled.');
       }
       voicePaymentPending = false;
       window.setVoiceState('done');
@@ -273,7 +289,7 @@
     return true;
   }
 
-  function prepareVoicePayment(page, draft) {
+  function prepareVoicePayment(page, draft, speak = true) {
     try {
       if (page === 'send-money') {
         window.appStore.requestSendMoney(draft.recipient, draft.amount, draft.note || '', 'checking');
@@ -288,7 +304,7 @@
       window.setVoiceState('confirming');
       // Keep recipient, amount, and memo out of Fish Audio TTS. The accessible confirmation dialog
       // presents the exact details locally; Fish speaks only this generic status prompt.
-      void window.speakAgentStatus?.('I have prepared the demo payment for your review. Please check the details, then confirm or cancel whenever you are ready.');
+      if (speak) void window.speakAgentStatus?.('Your payment is ready for review. Please check the details, then confirm or cancel whenever you are ready.');
     } catch (error) {
       commandStatus.textContent = error.message;
       void window.speakAgentStatus?.('I could not prepare that payment just now. Please review the message on screen and try again.');
@@ -302,7 +318,7 @@
     const phrase = text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     if (/^(?:confirm|confirm payment|confirm this payment|yes confirm|yes confirm payment)$/.test(phrase)) {
       voicePaymentPending = true;
-      logVoiceActivity('Voice confirmation accepted. Completing the demo payment.');
+      logVoiceActivity('Voice confirmation accepted. Recording the payment in the dashboard.');
       window.appStore.confirmPendingAction();
       return true;
     }
@@ -331,6 +347,24 @@
     return true;
   }
 
+  function summarizeIntentResult(code, result) {
+    const state = getState();
+    const money = window.appStore.formatCurrency;
+    if (code === 'RESPONCE_SHOW_BALANCE' || code === 'RESPONSE_OPEN_CHECKING') {
+      return `Checking balance: ${money(state.accounts.checking.balance)}.`;
+    }
+    if (code === 'RESPONSE_OPEN_SAVINGS') {
+      return `Savings balance: ${money(state.accounts.savings.balance)}.`;
+    }
+    if (code === 'RESPONSE_OPEN_CREDIT_CARDS') {
+      return `Credit card overview opened. Current balance: ${money(state.accounts.credit.balance)}.`;
+    }
+    if (code === 'REPONCE_SHOW_TRANSACTIONS') return 'Your recent transactions are shown.';
+    if (code === 'RESPONSE_FILTER_MERCHANTS') return byId('merchantResultCount')?.textContent || 'Your transactions are filtered.';
+    if (code === 'RESPONSE_OPEN_LOANS') return `Loan overview opened. Remaining balance: ${money(state.accounts.loans.balance)}.`;
+    return commandStatus.textContent || result?.message || 'Dashboard action completed.';
+  }
+
   const localActions = [
     [/^(?:(?:show(?: me)?|tell me|check|view|whats|what is) )?(?:(?:my|the) )?(?:available |current |checking |account )?balance$/, 'RESPONCE_SHOW_BALANCE'],
     [/^(?:(?:show(?: me)?|view|list|check) )?(?:(?:my|the) )?(?:recent |latest |last )?(?:transactions?|transaction history)$/, 'REPONCE_SHOW_TRANSACTIONS'],
@@ -353,6 +387,14 @@
       !button.closest('[hidden], [inert], [aria-hidden="true"], [aria-disabled="true"]') &&
       button.getClientRects().length && getComputedStyle(button).visibility === 'visible'
     );
+  }
+
+  function visibleScreenContext() {
+    const view = byId('viewContainer');
+    if (!view) return '';
+    const page = viewLabels.get(getState().currentPage) || '';
+    const text = view.innerText.replace(/\n{3,}/g, '\n\n').trim().slice(0, 3500);
+    return [page && `Current page: ${page}`, text].filter(Boolean).join('\n');
   }
 
   function buttonLabel(button) {
@@ -391,6 +433,18 @@
       .replace(/^(?:(?:can|could|would) you )?(?:please )?/, '').replace(/,? please$/, '');
     const commandPhrase = text.replace(/\s+/g, ' ').trim().replace(/[.!?,]+$/, '').trimEnd()
       .replace(/^(?:(?:can|could|would) you )?(?:please )?/i, '').replace(/,? please$/i, '');
+    const cardLockRequest = phrase.match(/^(lock|freeze|unlock|unfreeze) (?:(?:my|the) )?(?:(?:credit|bank) )?card(?: now)?$/);
+    if (cardLockRequest) {
+      const shouldLock = ['lock', 'freeze'].includes(cardLockRequest[1]);
+      const card = getState().accounts.credit;
+      if (card.locked === shouldLock) {
+        commandStatus.textContent = `Your credit card is already ${shouldLock ? 'locked' : 'unlocked'}.`;
+      } else {
+        window.appStore.toggleCardLock('credit');
+        commandStatus.textContent = `Your credit card is now ${shouldLock ? 'locked' : 'unlocked'}.`;
+      }
+      return true;
+    }
     const button = commandPhrase.match(/^(?:click|press|select) (.+)$/i);
     if (button && clickNamedButton(button[1])) return true;
     const money = commandPhrase.match(/^(transfer|move|send) (?:\$\s*)?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)(?: (?:dollars?|usd))? (.+)$/i);
@@ -448,34 +502,76 @@
     event.preventDefault();
     const text = command.value.trim();
     const fromVoice = submittedFromVoice;
+    let commandFailed = false;
     submittedFromVoice = false;
     if (!text || voiceSession || sendButton.disabled) return;
     if (fromVoice) logVoiceActivity('Transcript received. Checking the dashboard command.');
     if (handleVoicePaymentConfirmation(text, fromVoice)) return;
     if (runLocal(text, fromVoice)) {
+      const localOutcome = /\bbalance\b/i.test(text)
+        ? summarizeIntentResult('RESPONCE_SHOW_BALANCE')
+        : commandStatus.textContent || 'Dashboard action completed.';
+      showAssistantNotice(localOutcome, 'success');
       if (fromVoice) logVoiceActivity('Handled by a local dashboard action.');
-      if (fromVoice && !voicePaymentPending) void window.speakAgentStatus?.('Certainly. I have completed that dashboard request.');
+      if (fromVoice && !voicePaymentPending) void window.speakAgentStatus?.(localOutcome);
       return;
     }
     sendButton.disabled = true;
     window.setVoiceState('thinking');
     commandStatus.textContent = 'Finding the matching dashboard action…';
+    showAssistantNotice('Understanding your request…', 'pending');
     if (fromVoice) logVoiceActivity('Sending transcript to OpenRouter for interpretation.');
     try {
       const page = getState().currentPage;
       const controls = availableButtons().map((button) => ({ button, label: describeButton(button) }))
         .filter(({ label }) => label && label.length <= 200).slice(0, 100);
-      const result = await post('/api/intent', { text, controls: controls.map(({ label }) => label) });
+      const result = await post('/api/intent', {
+        text,
+        context: visibleScreenContext(),
+        controls: controls.map(({ label }) => label),
+      });
       if (fromVoice) logVoiceActivity(`OpenRouter returned ${result.responseCode || 'a response'}.`);
-      if (result.responseCode === 'RESPONSE_CLICK_CONTROL') {
+      if (result.responseCode === 'RESPONSE_ANSWER_FROM_CONTEXT') {
+        commandStatus.textContent = result.message;
+        if (fromVoice) void window.speakAgentStatus?.(result.message);
+      } else if (result.responseCode === 'RESPONSE_MULTI_ACTION') {
+        const spoken = [];
+        const payments = [];
+        for (const action of result.actions || []) {
+          if (action.responseCode === 'RESPONSE_ANSWER_FROM_CONTEXT') {
+            spoken.push(action.message);
+          } else if (action.responseCode === 'RESPONSE_OPEN_SEND_MONEY' && action.draft && fromVoice) {
+            payments.push({ page: 'send-money', draft: action.draft });
+          } else if (action.responseCode === 'RESPONSE_OPEN_TRANSFER' && action.draft && fromVoice) {
+            payments.push({ page: 'transfer', draft: action.draft });
+          } else if (openDestination(action.responseCode, action)) {
+            spoken.push(action.message || commandStatus.textContent);
+          } else {
+            spoken.push(action.message || 'I could not match one part of that request.');
+          }
+        }
+        if (payments.length && fromVoice) {
+          queuedVoicePayments = payments.slice(1);
+          commandStatus.textContent = `${payments.length} payment requests are ready. Review and confirm each one in turn.`;
+          const contextAnswers = spoken.filter(Boolean).join(' ');
+          const paymentSummary = `I’ve prepared ${payments.length} payment request${payments.length === 1 ? '' : 's'}. Please review each one in turn.`;
+          void window.speakAgentStatus?.([contextAnswers, paymentSummary].filter(Boolean).join(' '));
+          prepareVoicePayment(payments[0].page, payments[0].draft, false);
+        } else {
+          commandStatus.textContent = result.message || spoken.join(' ');
+          if (fromVoice) void window.speakAgentStatus?.(result.message || spoken.join(' '));
+        }
+      } else if (result.responseCode === 'RESPONSE_CLICK_CONTROL') {
         const selected = Number.isInteger(result.controlIndex) ? controls[result.controlIndex] : undefined;
         if (selected && getState().currentPage === page && availableButtons().includes(selected.button) &&
             describeButton(selected.button) === selected.label) {
           activateButton(selected.button);
           if (fromVoice) logVoiceActivity('Dashboard control selected.');
-          void window.speakAgentStatus?.('Certainly. I have selected that option for you.');
+          void window.speakAgentStatus?.(`Selected ${selected.label}.`);
         } else {
           commandStatus.textContent = 'That control is no longer available. Try the command again.';
+          commandFailed = true;
+          window.setVoiceState('error');
         }
       } else if (result.responseCode === 'RESPONSE_OPEN_SEND_MONEY' && result.draft) {
         if (fromVoice) logVoiceActivity('Payment request prepared for review; confirmation is still required.');
@@ -485,24 +581,34 @@
         prepareVoicePayment('transfer', result.draft);
       } else if (!openDestination(result.responseCode, result)) {
         commandStatus.textContent = result.message || 'Try one dashboard action, such as “open savings” or “show recent transactions”.';
+        commandFailed = true;
+        window.setVoiceState('error');
+        if (fromVoice) void window.speakAgentStatus?.(commandStatus.textContent);
         if (fromVoice) logVoiceActivity('No matching dashboard action was found.');
       } else if (!voicePaymentPending) {
         if (fromVoice) logVoiceActivity('Dashboard action completed.');
-        void window.speakAgentStatus?.('Of course. I have completed that dashboard request.');
+        void window.speakAgentStatus?.(result.message || summarizeIntentResult(result.responseCode, result));
       }
+      if (commandFailed) showAssistantNotice(commandStatus.textContent, 'error');
+      else showAssistantNotice(summarizeIntentResult(result.responseCode, result), 'success');
     } catch (error) {
       commandStatus.textContent = error.message;
+      showAssistantNotice(error.message, 'error');
+      commandFailed = true;
+      window.setVoiceState('error');
       if (fromVoice) logVoiceActivity(`Request failed: ${error.message}`);
     } finally {
       sendButton.disabled = false;
-      if (!voicePaymentPending) window.setVoiceState('done');
+      if (!voicePaymentPending && !commandFailed) window.setVoiceState('done');
     }
   });
 
   function applyTranscript(text) {
-    if (drawer.inert || accountDialog.open) return;
+    if (accountDialog.open) return;
     if (!text) {
       commandStatus.textContent = 'No speech was recognized. Try again or type a command.';
+      showAssistantNotice(commandStatus.textContent, 'error');
+      window.setVoiceState('error');
       return;
     }
     command.value = text;
@@ -517,12 +623,13 @@
     const media = window.navigator?.mediaDevices;
     const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus'].find((type) => Recorder?.isTypeSupported(type));
     if (!Recorder || !media?.getUserMedia || !mimeType || location.protocol === 'file:') {
-      commandStatus.textContent = 'Push-to-talk is unavailable here. Use the microphone button or type a command.';
+      commandStatus.textContent = location.protocol === 'file:'
+        ? 'Open the dashboard through the local server to use voice commands.'
+        : 'Voice input is unavailable in this browser.';
+      window.setVoiceState('error');
       return;
     }
     if (voiceSession || sendButton.disabled || accountDialog.open) return;
-    if (drawer.inert) byId('voiceAssistantBtn').click();
-
     const session = { pushToTalk: true, request: new AbortController(), released: false };
     voiceSession = session;
     sendButton.disabled = true;
@@ -555,11 +662,12 @@
       microphone.textContent = 'Transcribing…';
       window.setVoiceState('thinking');
       commandStatus.textContent = 'Transcribing your request…';
+      showAssistantNotice('Transcribing your voice request…', 'pending');
       logVoiceActivity('Recording sent for speech transcription.');
       try {
         const audio = new Blob(chunks, { type });
         if (!audio.size) throw new Error('No speech was recorded. Hold the shortcut and try again.');
-        const response = await fetch('/api/transcribe', {
+        const response = await window.backendFetch('/api/transcribe', {
           method: 'POST', body: audio, signal: session.request.signal,
         });
         const data = await response.json();
@@ -572,6 +680,8 @@
         if (voiceSession !== session) return;
         finish();
         commandStatus.textContent = error.message;
+        showAssistantNotice(error.message, 'error');
+        window.setVoiceState('error');
         logVoiceActivity(`Transcription failed: ${error.message}`);
       }
     }
@@ -602,6 +712,7 @@
       commandStatus.textContent = error.name === 'NotAllowedError'
         ? 'Microphone permission was denied. Allow access or type a command.'
         : 'Could not record from your microphone. Try again or type a command.';
+      window.setVoiceState('error');
       logVoiceActivity(`Microphone error: ${commandStatus.textContent}`);
     });
   }
@@ -705,10 +816,11 @@
       microphone.textContent = 'Transcribing…';
       window.setVoiceState('thinking');
       commandStatus.textContent = 'Transcribing your recording…';
+      showAssistantNotice('Transcribing your voice request…', 'pending');
       const audio = new Blob(chunks, { type });
       try {
         if (!audio.size) throw new Error('No audio was recorded. Try again or type a command.');
-        const response = await fetch('/api/transcribe', {
+        const response = await window.backendFetch('/api/transcribe', {
           method: 'POST', body: audio, signal: session.request.signal,
         });
         const data = await response.json();
@@ -720,6 +832,7 @@
         if (voiceSession !== session) return;
         finish(session);
         commandStatus.textContent = error.message;
+        showAssistantNotice(error.message, 'error');
       }
     }
 
@@ -773,8 +886,6 @@
           : 'Could not record from your microphone. Try again or type a command.';
       }
     });
-    byId('closeVoiceDrawer').addEventListener('click', cancel);
-    byId('voiceAssistantBtn').addEventListener('click', () => { if (drawer.inert) cancel(); });
     window.addEventListener('pagehide', cancel);
     return true;
   }
@@ -785,6 +896,7 @@
     microphone.disabled = true;
     microphone.textContent = 'Microphone unavailable';
     commandStatus.textContent = 'This browser does not support speech recognition. You can type a command.';
+    window.setVoiceState('error');
     return;
   }
   const transcriptPreview = byId('voiceTranscriptPreview');
@@ -842,6 +954,11 @@
       return;
     }
     if (sendButton.disabled) return;
+    if (location.protocol === 'file:') {
+      commandStatus.textContent = 'Open the dashboard at http://localhost:3001 so Chrome can remember microphone permission for this site.';
+      window.setVoiceState('error');
+      return;
+    }
     voiceSession = { transcript: '', cancelled: false, stopping: false };
     sendButton.disabled = true;
     document.body.classList.add('voice-listening');
@@ -862,7 +979,5 @@
     commandStatus.textContent = 'Dictation cancelled.';
     recognition.abort();
   }
-  byId('closeVoiceDrawer').addEventListener('click', abortVoice);
-  byId('voiceAssistantBtn').addEventListener('click', () => { if (drawer.inert) abortVoice(); });
   window.addEventListener('pagehide', abortVoice);
 })();

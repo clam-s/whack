@@ -411,7 +411,7 @@
       };
 
       state.transactions.unshift(newTxFrom, newTxTo);
-      setNotification(`Successfully transferred $${amount.toFixed(2)} to ${toAcc.name}.`, 'success');
+      setNotification(`Payment entry for $${amount.toFixed(2)} to ${toAcc.name} was recorded in this dashboard.`, 'success');
     } 
     else if (type === 'sendMoney') {
       if (state.currentPage === 'send-money') state.pageParams = {};
@@ -432,7 +432,7 @@
       };
 
       state.transactions.unshift(newTx);
-      setNotification(`Successfully sent $${amount.toFixed(2)} to ${recipient}.`, 'success');
+      setNotification(`Payment entry for $${amount.toFixed(2)} to ${recipient} was recorded in this dashboard.`, 'success');
     }
     else if (type === 'openAccount') {
       const { accountType, initialDeposit, accountName } = payload;

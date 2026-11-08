@@ -182,11 +182,34 @@ const server = createServer(async (req, res) => {
   const origin = req.headers.origin;
   res.setHeader('Vary', 'Origin');
   const localPort = server.address().port;
-  if (origin && origin !== FRONTEND_ORIGIN && origin !== `http://127.0.0.1:${localPort}` &&
-      origin !== `http://localhost:${localPort}`) {
+  const allowedOrigins = new Set([
+    FRONTEND_ORIGIN,
+    `http://127.0.0.1:${localPort}`,
+    `http://localhost:${localPort}`,
+  ].filter(Boolean));
+  if (FRONTEND_ORIGIN) {
+    try {
+      const configured = new URL(FRONTEND_ORIGIN);
+      if (configured.hostname === 'localhost') allowedOrigins.add(`${configured.protocol}//127.0.0.1:${configured.port}`);
+      if (configured.hostname === '127.0.0.1') allowedOrigins.add(`${configured.protocol}//localhost:${configured.port}`);
+    } catch { /* An invalid configured origin is ignored; same-origin local use still works. */ }
+  }
+  // A file:// dashboard has an opaque "null" origin. This backend binds only to loopback,
+  // so allow the local-file frontend to reach its explicitly configured local API.
+  if (origin && origin !== 'null' && !allowedOrigins.has(origin)) {
     return send(res, 403, { error: 'Origin is not allowed' });
   }
   if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
+
+  if (path === '/api/health' && req.method === 'GET') {
+    res.setHeader('Cache-Control', 'no-store');
+    return send(res, 200, {
+      status: 'ok',
+      openRouterConfigured: Boolean(OPENROUTER_API_KEY && OPENROUTER_MODEL),
+      fishAudioConfigured: Boolean(FISH_API_KEY),
+      model: OPENROUTER_MODEL || null,
+    });
+  }
 
   if (path !== '/api/generate' && path !== '/api/intent' && path !== '/api/execute' && path !== '/api/account' && path !== '/api/transcribe' && path !== '/api/speak') {
     return send(res, 404, { error: 'Route not found' });
@@ -206,6 +229,7 @@ const server = createServer(async (req, res) => {
   try {
     if (path === '/api/transcribe') {
       res.setHeader('Cache-Control', 'no-store');
+      const startedAt = performance.now();
       const format = audioFormats.get(req.headers['content-type']?.split(';')[0].trim().toLowerCase());
       if (!format) throw new RequestError(415, 'Expected WebM or Ogg audio');
       if (!FISH_API_KEY && !OPENROUTER_API_KEY && !storeVoiceClips) throw new RequestError(503, 'Speech transcription requires a Fish Audio or OpenRouter API key');
@@ -221,6 +245,7 @@ const server = createServer(async (req, res) => {
         const text = FISH_API_KEY
           ? await transcribeWithFish(audio, format)
           : await transcribeAudio(audio, format, { apiKey: OPENROUTER_API_KEY, model: transcriptionModel });
+        console.info(`[${path}] ${Math.round(performance.now() - startedAt)}ms via ${FISH_API_KEY ? 'Fish Audio' : 'OpenRouter'}`);
         return send(res, 200, { text });
       } catch (error) {
         if (error instanceof RequestError) throw error;
@@ -237,8 +262,11 @@ const server = createServer(async (req, res) => {
       if (activeSpeechRequests >= 2) throw new RequestError(429, 'Speech synthesis is busy');
       const text = readField(await readBody(req), 'text', 2_000);
       activeSpeechRequests++;
+      const startedAt = performance.now();
       try {
-        return sendAudio(res, await synthesizeWithFish(text));
+        const result = await synthesizeWithFish(text);
+        console.info(`[${path}] ${Math.round(performance.now() - startedAt)}ms via Fish Audio`);
+        return sendAudio(res, result);
       } catch (error) {
         if (error.name === 'TimeoutError') throw new RequestError(504, 'Speech synthesis timed out');
         throw new RequestError(502, error.message || 'Speech synthesis failed');
@@ -269,29 +297,43 @@ const server = createServer(async (req, res) => {
       const navigation = path === '/api/intent';
       const fallback = navigation ? navigationFallback : generationFallback;
       const controls = navigation ? body.controls ?? [] : [];
+      const context = navigation ? body.context ?? '' : '';
+      if (typeof context !== 'string' || context.length > 4000) {
+        throw new RequestError(400, 'context must be a string of up to 4000 characters');
+      }
       if (!Array.isArray(controls) || controls.length > 100 ||
           controls.some((label) => typeof label !== 'string' || !label.trim() || label.length > 200)) {
         throw new RequestError(400, 'controls must contain at most 100 labels of up to 200 characters each');
       }
       if (!OPENROUTER_API_KEY || !OPENROUTER_MODEL) {
+        console.warn(`[${path}] OpenRouter is not configured`);
         return send(res, 503, { ...fallback, error: 'OpenRouter is not configured' });
       }
       if (activeGenerations >= 4) throw new RequestError(429, 'Generation is busy');
       activeGenerations++;
+      const startedAt = performance.now();
       try {
         const config = { apiKey: OPENROUTER_API_KEY, model: OPENROUTER_MODEL };
         const result = navigation
-          ? await classifyNavigation(text, config, controls)
+          ? await classifyNavigation(text, config, controls, context)
           : await generateCode(text, config);
         if (!navigation && result.code === null && !isAccountIntent(result.responseCode)) {
           return send(res, 502, { ...result, error: 'OpenRouter did not generate code' });
         }
+        console.info(`[${path}] ${Math.round(performance.now() - startedAt)}ms → ${result.responseCode}`);
         return send(res, 200, result);
       } catch (error) {
         const timedOut = error.name === 'TimeoutError';
+        console.error(`[${path}] ${timedOut ? 'request timed out' : error.message}`);
+        const message = timedOut
+          ? 'OpenRouter request timed out. Please try again.'
+          : error.message?.startsWith('OpenRouter ')
+            ? error.message
+            : 'OpenRouter could not process the request. Please try again.';
         return send(res, timedOut ? 504 : 502, {
           ...fallback,
-          error: timedOut ? 'OpenRouter request timed out' : 'OpenRouter could not process the request',
+          error: message,
+          message,
         });
       } finally {
         activeGenerations--;
