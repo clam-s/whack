@@ -58,7 +58,7 @@ whack/
 5. **CORS / `FRONTEND_ORIGIN`**:
    - The backend validates `Origin` against `FRONTEND_ORIGIN` (default: `http://localhost:5173` or `http://127.0.0.1:3001`).
    - Opening `index.html` as `file://` causes the browser to send `Origin: null`, which the backend rejects with `403`.
-   - When communicating with the live backend, run `python3 -m http.server 5173 --directory frontend`.
+   - For normal development, open the dashboard and API on the same origin using the Node server in §6. Set `FRONTEND_ORIGIN` only if you serve the frontend separately.
 
 **⚠️ Known issue, not fixed in this session:** `.env` (containing a live `OPENROUTER_API_KEY`) is tracked in git, not ignored. Harmless while the repo stays private, but the key should be rotated and `.env` removed from history before this repo is ever made public.
 
@@ -90,25 +90,15 @@ whack/
 
 ## 6. How to Run Locally
 
-### Immediate Static Inspection:
-```bash
-open frontend/index.html
-```
-*(Runs self-contained with fictional data on `file://`; backend calls and live eye tracking both require the HTTP server below.)*
+### Start the Dashboard and Backend
 
-### Running With Local HTTP Server (required for the backend and eye tracking):
-```bash
-python3 -m http.server 5173 --directory frontend
-```
-Visit: `http://localhost:5173/index.html`
+From the repository root, use this command to run the full app:
 
-### Running the Backend:
 ```bash
-cp .env.example .env
-# Set OPENROUTER_API_KEY, OPENROUTER_MODEL, FRONTEND_ORIGIN=http://localhost:5173
-# Optionally set OPENROUTER_TRANSCRIPTION_MODEL and DEBUG_STORE_VOICE_CLIPS
 node --env-file=.env backend/server.mjs
 ```
+
+Open `http://127.0.0.1:3001` in your browser. The Node server serves the dashboard, eye-tracking overlay, and API together. Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` in `.env` for natural-language commands and fallback transcription. If `.env` is missing, copy `.env.example` first.
 
 ### Trying Live Eye Tracking:
 1. In the dashboard header, click **"Eye Tracking"** (next to "Gaze Lens").
