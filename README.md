@@ -1,31 +1,49 @@
 # whack 2026 submission
 
-Accessibility interface for Capital One.
+An accessible banking dashboard demo for WHACK 2026. Explore fictional accounts using voice or typed commands, high contrast, read-aloud controls, and webcam gaze tracking.
 
-The local backend turns a speech transcript into JavaScript for Node.js 22 using OpenRouter. The app can display the code and send it back in a separate request to run it and display the output.
+Common dashboard commands run in the browser. OpenRouter interprets more loosely phrased requests. A separate API can generate JavaScript for Node.js 22 and run it in a local Docker container when enabled.
 
 ## Tech stack
 
 - **Node.js 22 and JavaScript ES modules** for the backend and generated scripts.
 - **Built-in Node.js APIs** for the HTTP server (`node:http`), OpenRouter requests (`fetch`), and launching the runner (`node:child_process`). No npm packages are required.
-- **OpenRouter Chat Completions API** for turning transcripts into JavaScript. Choose the model with `OPENROUTER_MODEL`.
+- **OpenRouter** for natural-language commands, fallback speech transcription, and optional JavaScript generation. Choose the chat model with `OPENROUTER_MODEL`.
 - **Docker** for optional code execution using the `node:22-bookworm-slim` image.
 - **SQLite** via Node.js `node:sqlite` for local demo accounts and transaction history.
 
 ## Start the backend
 
 1. Install Node.js 22.13 or newer.
-2. Run `cp .env.example .env` and fill in `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` with your key and model ID. If the browser frontend runs on a different origin, set `FRONTEND_ORIGIN` to match it exactly.
+2. If you don't have a `.env` file, copy `.env.example` to `.env`. Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` to enable natural-language commands and the recording fallback. If the browser frontend runs on a different origin, set `FRONTEND_ORIGIN` to match it exactly.
 3. Run `node --env-file=.env backend/server.mjs`. The backend listens at `http://127.0.0.1:3001` by default.
 4. Open `http://127.0.0.1:3001` to use the dashboard and API on the same address.
 
-Open **Voice Assistant** to type or dictate commands. Common phrases like “show balance” and “open savings” run locally. **Send command** uses OpenRouter for other phrasing. The dashboard automatically signs in to the demo account and shows the SQLite balance and transactions separately from the example data. Use **Demo account** to sign out. Reloading signs in to the demo again. **Read aloud**, **Magnify on hover**, **Contrast**, and **Gaze Lens** are available on the dashboard.
+The dashboard automatically signs in to the demo account and shows the SQLite balance and transactions separately from the example data. Use **Demo account** to sign out. Reloading signs in to the demo again.
+
+## Voice and typed commands
+
+Open **Voice Assistant** and either type a command or use the microphone. Commands such as “show balance,” “open savings,” and “click Contrast” run locally. Other phrasing goes to OpenRouter when configured. For on-screen controls, use the button label or describe the action. Where buttons share a label, include the section or item name.
+
+| Try saying or typing | What happens |
+| --- | --- |
+| “Click View All Recent Transactions” | Opens the merchant filter page. You can also get there from **Recent Transactions → View All** on the dashboard. |
+| “Which charges were for Spotify?” | Filters purchases by merchant. Say “clear merchant filter” to show all merchant purchases. |
+| “Turn on high contrast” | Asks the assistant to select the dashboard's Contrast control. |
+| “Put fifty dollars into savings from checking” | Fills the Transfer form with the source account, destination account, and amount. |
+| “Send 20 dollars to Alex Smith for dinner” | Fills the Send Money form with the recipient, amount, and an editable dinner memo. |
+
+Transfer and Send Money commands prepare editable forms. Use **Review** and then **Confirm Transaction** to complete the demo action.
 
 Select **Start microphone** and allow access in the browser. The assistant previews what it hears as you speak and puts the final transcript in the command field. When recording stops, the assistant submits the final transcript automatically. To type a command, use the same field and select **Send command**. [Browser speech recognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition)
 
 In Firefox, select **Record command**, allow microphone access, and select **Stop and transcribe** after speaking. Clips stop automatically at 15 seconds. The backend sends the clip to OpenRouter for transcription using the existing API key and the `OPENROUTER_TRANSCRIPTION_MODEL` setting, which defaults to `openai/whisper-large-v3`. The assistant submits the transcript once the clip is processed. [OpenRouter transcription](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/)
 
 Set `DEBUG_STORE_VOICE_CLIPS=true` in `.env` and restart the backend to save uploaded WebM or Ogg clips in `backend/data/voice-clips/`. The terminal prints each saved filename. Clips are saved before transcription, so they are available even when the transcription request fails. The directory is ignored by Git, and clips remain on disk until deleted. Browser-native speech recognition does not upload a clip to this backend.
+
+## Webcam gaze tracking
+
+Open the dashboard on localhost or HTTPS, select **Eye Tracking**, then select **Start camera and calibrate** and allow camera access. Look at each target and follow the moving dot. After calibration, holding your gaze on a dashboard control selects it. Use **Recalibrate** to run calibration again or **Retry** if the camera or tracker stops.
 
 ## API
 
@@ -37,6 +55,8 @@ Send JSON with `Content-Type: application/json`. Keep the OpenRouter key in the 
 | `POST /api/generate` | `{"text":"Show my balance"}` | `{"language":"javascript","code":null,"responseCode":"RESPONCE_SHOW_BALANCE","message":"Show the account balance."}` |
 | `POST /api/intent` | `{"text":"Take me to my savings"}` | `{"responseCode":"RESPONSE_OPEN_SAVINGS","message":"Open the Savings tab."}` |
 | `POST /api/execute` | `{"code":"for (let n = 1; n <= 5; n++) console.log(n ** 2)"}` | `{"stdout":"1\n4\n9\n16\n25\n","stderr":"","exitCode":0,"status":"ok","truncated":false}` |
+
+`POST /api/intent` may return a `merchant` filter or a transaction `draft` with `amount` and either `from` and `to`, or `recipient` and an optional `note`. For natural-language button selection, the client can send a `controls` array of visible button labels. A `RESPONSE_CLICK_CONTROL` result includes the zero-based `controlIndex` into that array.
 
 Recognized account requests return `200` with `code: null` and an intent `responseCode`. The frontend can use that code to choose what to display from `/api/account`. Unknown or missing intent codes fall back to `RESPONSE_UNKNOWN_INTENT`. HTTP errors include an `error` string, and generation failures also include a plain-language `message` for the app to display. The full list is in [intent-responses.json](backend/intent-responses.json).
 
