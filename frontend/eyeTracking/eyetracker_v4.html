@@ -220,6 +220,8 @@ const fx = new OneEuro(), fy = new OneEuro();
 let landmarker, lastFeat = null, state = "idle", gaze = null, raw = null, fps = 0, showHeat = false, showLm = false;
 const log = [], heat = { cols: 64, rows: 36, a: new Float32Array(64 * 36) };
 const fix = { x: 0, y: 0, t0: 0, on: false, pts: [] };
+const recentFixation = [];
+let lastFeedbackFixationAt = 0;
 let target = null; // {x,y,r,label}
 
 const setState = s => {
@@ -302,6 +304,8 @@ function onGaze(f, now) {
   const dt = (now - p[0][2]) / 1000, v = dt > 0.02 ? Math.hypot(gx - p[0][0], gy - p[0][1]) / pxPerDeg() / dt : 0;
   if (v > 40) { fix.on = false; $("sFix").textContent = "saccade"; }
   else { if (!fix.on) { fix.on = true; fix.t0 = now; } $("sFix").textContent = `${(now - fix.t0).toFixed(0)} ms`; }
+  if (fix.on && !fix.off) recentFixation.push({ x: gx, y: gy, t: now, fixationAt: fix.t0 });
+  while (recentFixation.length && now - recentFixation[0].t > 600) recentFixation.shift();
   const cx = Math.floor(gx / W * heat.cols), cy = Math.floor(gy / H * heat.rows);
   if (cx >= 0 && cy >= 0 && cx < heat.cols && cy < heat.rows) heat.a[cy * heat.cols + cx] += 1;
   log.push([Math.round(now), gx.toFixed(1), gy.toFixed(1), x.toFixed(1), y.toFixed(1), fix.on ? 1 : 0]); if (log.length > 2e5) log.shift();
@@ -337,6 +341,7 @@ async function pursuit() { // smooth-pursuit pass: dense coverage incl. edges; l
 async function calibrate() {
   const detector = landmarker;
   setState("calibrating"); $("center").classList.add("hide"); model.S.length = 0; model.ok = false; gaze = null; fx.reset(); fy.reset();
+  recentFixation.length = 0; lastFeedbackFixationAt = 0;
   await sleep(500);
   if (landmarker !== detector) return;
   const order = shuffle(CAL.map((p, i) => [p, i]));
@@ -374,6 +379,37 @@ async function driftFix() { // one-point re-centre: removes slow offset drift wi
   if (ps.length > 8) { model.bias[0] += median(ps.map(p => p[0])) - px; model.bias[1] += median(ps.map(p => p[1])) - py; }
   setState("tracking");
 }
+// A real pointer selection is a weak but useful label: the user meant to act inside this control.
+// Correct only the slow screen-space bias, using a stable fixation just before the click. The
+// per-frame gaze loop applies this updated bias continuously; synthetic gaze clicks never call it.
+window.refineGazeFromSelection = rect => {
+  const now = performance.now();
+  if (state !== "tracking" || !model.ok || fix.off || lastFeat?.blink > 0.35 || !rect ||
+      fix.t0 <= lastFeedbackFixationAt) return false;
+  const samples = recentFixation.filter(s => now - s.t <= 450 && s.fixationAt === fix.t0);
+  if (samples.length < 5 || samples.at(-1).t - samples[0].t < 120) return false;
+
+  const x = median(samples.map(s => s.x)), y = median(samples.map(s => s.y));
+  const spread = median(samples.map(s => Math.hypot(s.x - x, s.y - y)));
+  if (spread > 32) return false;
+
+  // A control is a region, not an exact point. Use the nearest point in its bounds as a
+  // conservative label, and reject very large disagreements that could mean the user was looking
+  // elsewhere when they clicked.
+  const tx = Math.max(rect.left, Math.min(x, rect.right));
+  const ty = Math.max(rect.top, Math.min(y, rect.bottom));
+  const ex = x - tx, ey = y - ty, error = Math.hypot(ex, ey);
+  if (error < 2 || error > 180) return false;
+
+  // model.predict subtracts bias, so move bias opposite the observed prediction error. Each
+  // trusted selection contributes at most an 8 px correction; total learned offset is bounded.
+  const stepX = Math.max(-8, Math.min(8, ex * 0.12));
+  const stepY = Math.max(-8, Math.min(8, ey * 0.12));
+  model.bias[0] = Math.max(-160, Math.min(160, model.bias[0] + stepX));
+  model.bias[1] = Math.max(-160, Math.min(160, model.bias[1] + stepY));
+  lastFeedbackFixationAt = fix.t0;
+  return true;
+};
 /* click-to-refine: the clicked point is almost certainly being looked at (WebGazer idea) */
 addEventListener("click", e => {
   if (state !== "tracking" || !lastFeat || lastFeat.blink > 0.35 || e.target.closest("#panel,#msg,#bar")) return;

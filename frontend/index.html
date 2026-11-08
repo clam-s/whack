@@ -562,7 +562,7 @@
     class="hidden fixed inset-0 w-full h-full border-0 z-[70]"
   ></iframe>
   <!-- Gaze cursor: a small dot (color = fixating vs. saccading) plus a ring that fills over the
-       2s dwell period when gaze lands on something clickable -- dwelling it out acts as a click. -->
+       1s dwell period when gaze lands on something clickable -- dwelling it out acts as a click. -->
   <svg
     id="gazeCursorDot"
     class="hidden fixed z-[71] pointer-events-none transition-[left,top] duration-100 ease-out"
@@ -822,6 +822,20 @@
       liveEyeTrackingBadge.className = 'bg-amber-400 text-slate-950 font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-xs shadow-xs';
       liveEyeTrackingFrame.contentWindow?.recalibrateGaze?.();
     });
+
+    // Feed the tracker weak supervision from deliberate user selections, including keyboard or
+    // assistive-technology clicks. The iframe checks the fixation before learning. Untrusted
+    // target.click() events from gaze dwell cannot train the model on its own guess.
+    document.addEventListener('click', (event) => {
+      if (!liveEyeTrackingActive || !event.isTrusted ||
+          !(event.target instanceof Element)) return;
+      const selectedControl = event.target.closest(GAZE_CLICKABLE_SELECTOR);
+      if (!selectedControl) return;
+      const r = selectedControl.getBoundingClientRect();
+      liveEyeTrackingFrame.contentWindow?.refineGazeFromSelection?.({
+        left: r.left, top: r.top, right: r.right, bottom: r.bottom
+      });
+    }, true);
 
     // Called by the iframe (same origin) whenever its calibration state machine changes.
     window.__onTrackerState = function (state) {
