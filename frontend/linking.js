@@ -1,14 +1,13 @@
 (() => {
-  const { getState, subscribe, navigateTo, toggleHighContrast } = window.appStore;
+  const { getState, subscribe, navigateTo } = window.appStore;
   const byId = (id) => document.getElementById(id);
   const command = byId('voiceCommand');
   const commandForm = byId('voiceCommandForm');
   const commandStatus = byId('voiceCommandStatus');
   const sendButton = byId('sendVoiceCommand');
   const microphone = byId('voiceMicrophone');
-  const testVoiceButton = byId('testAgentVoice');
   const voiceActivityLog = byId('voiceActivityLog');
-  const drawer = byId('voiceAssistantDrawer');
+  const voiceAssistantButton = byId('voiceAssistantBtn');
   const accountDialog = byId('linkedAccountDialog');
   const accountForm = byId('linkedAccountForm');
   const accountStatus = byId('linkedAccountStatus');
@@ -49,10 +48,7 @@
       logVoiceActivity(`Fish speech could not play: ${detail.message || 'unknown error'}.`);
     }
   });
-  testVoiceButton?.addEventListener('click', () => {
-    logVoiceActivity('Starting the Fish voice check.');
-    void window.speakAgentStatus?.('Hello. This is Chloe, your voice assistant.');
-  });
+  voiceAssistantButton.addEventListener('click', () => microphone.click());
 
   function preference(key, value) {
     try {
@@ -63,8 +59,6 @@
     }
   }
 
-  if (preference('whack.highContrast') && !getState().highContrast) toggleHighContrast();
-  byId('highContrastToggle').addEventListener('click', () => preference('whack.highContrast', getState().highContrast));
   const magnify = byId('magnificationToggle');
   document.body.classList.toggle('magnification', Boolean(preference('whack.magnification')));
   magnify.setAttribute('aria-pressed', String(document.body.classList.contains('magnification')));
@@ -96,7 +90,7 @@
     accountPanel.hidden = !account || !['checking', 'account-details', 'recent-all'].includes(page);
     accountForm.hidden = Boolean(account);
     signOut.hidden = !account;
-    accountButton.textContent = account ? 'Demo account' : 'Demo account sign-in';
+    accountButton.textContent = account ? 'Linked account' : 'Account sign-in';
     byId('linkedAccountName').textContent = account ? `${account.name} · ${account.userId}` : '';
     byId('linkedAccountBalance').textContent = account ? `Available balance: ${formatAmount(account.balanceMinor)}` : '';
     const rows = account?.transactions.map((item) => {
@@ -128,14 +122,14 @@
     try {
       account = await post('/api/account', credentials, request.signal);
       renderAccount();
-      accountStatus.textContent = 'Signed in. Open Checking or Recent Transactions to see your linked demo data.';
+      accountStatus.textContent = 'Account connected. Open Checking or Recent Transactions to view your activity.';
       if (accountDialog.open) signOut.focus();
-      if (!automatic && readAloud) window.speakText('Signed in. Your linked demo account is ready.');
+      if (!automatic && readAloud) window.speakText('Signed in. Your account is ready.');
     } catch (error) {
       if (!request.signal.aborted) {
         accountStatus.textContent = error.message;
         if (automatic && !accountDialog.open) {
-          commandStatus.textContent = 'Automatic demo sign-in failed. Use Demo account sign-in to try again.';
+          commandStatus.textContent = 'Account sign-in failed. Please try again.';
         }
       }
     } finally {
@@ -186,7 +180,7 @@
       rewards: () => ` Sample rewards: ${rewards.miles.toLocaleString()} miles.`,
     };
     const summary = account && ['checking', 'recent-all', 'account-details'].includes(page)
-      ? ` Linked demo balance: ${formatAmount(account.balanceMinor)}. ${account.transactions.length} transactions.` : '';
+      ? ` Linked balance: ${formatAmount(account.balanceMinor)}. ${account.transactions.length} transactions.` : '';
     window.speakText(title + '.' + (summary || sampleSummaries[page]?.() || ''));
   }
 
@@ -210,11 +204,11 @@
     previousPage = state.currentPage;
     if (voicePaymentPending && lastPendingConfirmation && !state.pendingConfirmation) {
       if (state.notification?.type === 'success') {
-        commandStatus.textContent = 'Demo payment complete.';
-        void window.speakAgentStatus?.('Your demo payment has been completed.');
+        commandStatus.textContent = 'Payment entry recorded in this dashboard.';
+        void window.speakAgentStatus?.('The payment entry has been recorded in your transaction history.');
       } else if (state.notification?.type === 'info') {
-        commandStatus.textContent = 'Demo payment cancelled.';
-        void window.speakAgentStatus?.('The demo payment was cancelled as requested.');
+        commandStatus.textContent = 'Payment cancelled.';
+        void window.speakAgentStatus?.('The payment was cancelled.');
       }
       voicePaymentPending = false;
       window.setVoiceState('done');
@@ -288,7 +282,7 @@
       window.setVoiceState('confirming');
       // Keep recipient, amount, and memo out of Fish Audio TTS. The accessible confirmation dialog
       // presents the exact details locally; Fish speaks only this generic status prompt.
-      void window.speakAgentStatus?.('I have prepared the demo payment for your review. Please check the details, then confirm or cancel whenever you are ready.');
+      void window.speakAgentStatus?.('Your payment is ready for review. Please check the details, then confirm or cancel whenever you are ready.');
     } catch (error) {
       commandStatus.textContent = error.message;
       void window.speakAgentStatus?.('I could not prepare that payment just now. Please review the message on screen and try again.');
@@ -302,7 +296,7 @@
     const phrase = text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     if (/^(?:confirm|confirm payment|confirm this payment|yes confirm|yes confirm payment)$/.test(phrase)) {
       voicePaymentPending = true;
-      logVoiceActivity('Voice confirmation accepted. Completing the demo payment.');
+      logVoiceActivity('Voice confirmation accepted. Recording the payment in the dashboard.');
       window.appStore.confirmPendingAction();
       return true;
     }
@@ -448,6 +442,7 @@
     event.preventDefault();
     const text = command.value.trim();
     const fromVoice = submittedFromVoice;
+    let commandFailed = false;
     submittedFromVoice = false;
     if (!text || voiceSession || sendButton.disabled) return;
     if (fromVoice) logVoiceActivity('Transcript received. Checking the dashboard command.');
@@ -476,6 +471,8 @@
           void window.speakAgentStatus?.('Certainly. I have selected that option for you.');
         } else {
           commandStatus.textContent = 'That control is no longer available. Try the command again.';
+          commandFailed = true;
+          window.setVoiceState('error');
         }
       } else if (result.responseCode === 'RESPONSE_OPEN_SEND_MONEY' && result.draft) {
         if (fromVoice) logVoiceActivity('Payment request prepared for review; confirmation is still required.');
@@ -485,6 +482,8 @@
         prepareVoicePayment('transfer', result.draft);
       } else if (!openDestination(result.responseCode, result)) {
         commandStatus.textContent = result.message || 'Try one dashboard action, such as “open savings” or “show recent transactions”.';
+        commandFailed = true;
+        window.setVoiceState('error');
         if (fromVoice) logVoiceActivity('No matching dashboard action was found.');
       } else if (!voicePaymentPending) {
         if (fromVoice) logVoiceActivity('Dashboard action completed.');
@@ -492,17 +491,20 @@
       }
     } catch (error) {
       commandStatus.textContent = error.message;
+      commandFailed = true;
+      window.setVoiceState('error');
       if (fromVoice) logVoiceActivity(`Request failed: ${error.message}`);
     } finally {
       sendButton.disabled = false;
-      if (!voicePaymentPending) window.setVoiceState('done');
+      if (!voicePaymentPending && !commandFailed) window.setVoiceState('done');
     }
   });
 
   function applyTranscript(text) {
-    if (drawer.inert || accountDialog.open) return;
+    if (accountDialog.open) return;
     if (!text) {
       commandStatus.textContent = 'No speech was recognized. Try again or type a command.';
+      window.setVoiceState('error');
       return;
     }
     command.value = text;
@@ -517,12 +519,13 @@
     const media = window.navigator?.mediaDevices;
     const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus'].find((type) => Recorder?.isTypeSupported(type));
     if (!Recorder || !media?.getUserMedia || !mimeType || location.protocol === 'file:') {
-      commandStatus.textContent = 'Push-to-talk is unavailable here. Use the microphone button or type a command.';
+      commandStatus.textContent = location.protocol === 'file:'
+        ? 'Open the dashboard through the local server to use voice commands.'
+        : 'Voice input is unavailable in this browser.';
+      window.setVoiceState('error');
       return;
     }
     if (voiceSession || sendButton.disabled || accountDialog.open) return;
-    if (drawer.inert) byId('voiceAssistantBtn').click();
-
     const session = { pushToTalk: true, request: new AbortController(), released: false };
     voiceSession = session;
     sendButton.disabled = true;
@@ -572,6 +575,7 @@
         if (voiceSession !== session) return;
         finish();
         commandStatus.textContent = error.message;
+        window.setVoiceState('error');
         logVoiceActivity(`Transcription failed: ${error.message}`);
       }
     }
@@ -602,6 +606,7 @@
       commandStatus.textContent = error.name === 'NotAllowedError'
         ? 'Microphone permission was denied. Allow access or type a command.'
         : 'Could not record from your microphone. Try again or type a command.';
+      window.setVoiceState('error');
       logVoiceActivity(`Microphone error: ${commandStatus.textContent}`);
     });
   }
@@ -773,8 +778,6 @@
           : 'Could not record from your microphone. Try again or type a command.';
       }
     });
-    byId('closeVoiceDrawer').addEventListener('click', cancel);
-    byId('voiceAssistantBtn').addEventListener('click', () => { if (drawer.inert) cancel(); });
     window.addEventListener('pagehide', cancel);
     return true;
   }
@@ -785,6 +788,7 @@
     microphone.disabled = true;
     microphone.textContent = 'Microphone unavailable';
     commandStatus.textContent = 'This browser does not support speech recognition. You can type a command.';
+    window.setVoiceState('error');
     return;
   }
   const transcriptPreview = byId('voiceTranscriptPreview');
@@ -862,7 +866,5 @@
     commandStatus.textContent = 'Dictation cancelled.';
     recognition.abort();
   }
-  byId('closeVoiceDrawer').addEventListener('click', abortVoice);
-  byId('voiceAssistantBtn').addEventListener('click', () => { if (drawer.inert) abortVoice(); });
   window.addEventListener('pagehide', abortVoice);
 })();

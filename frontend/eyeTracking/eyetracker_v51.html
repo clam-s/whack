@@ -271,8 +271,20 @@ const setState = s => {
 };
 // Bridge to a same-origin host page embedding this tracker in an <iframe> (see frontend/index.html).
 // No-ops when opened standalone (window.parent === window) or when the host doesn't define the hook.
-function notifyParentState(s) { try { if (window.parent !== window) window.parent.__onTrackerState?.(s); } catch {} }
-function notifyParentGaze(x, y, fixating) { try { if (window.parent !== window) window.parent.__onExternalGaze?.(x, y, fixating); } catch {} }
+function notifyParent(type, payload, callbackName, callbackArgs) {
+  if (window.parent === window) return;
+  try {
+    const callback = window.parent[callbackName];
+    if (typeof callback === "function") { callback(...callbackArgs); return; }
+  } catch { /* file:// iframes have opaque origins; use postMessage below */ }
+  try { window.parent.postMessage({ source: "whack-eye-tracker", type, ...payload }, "*"); } catch {}
+}
+function notifyParentState(s) {
+  notifyParent("state", { state: s }, "__onTrackerState", [s]);
+}
+function notifyParentGaze(x, y, fixating) {
+  notifyParent("gaze", { x, y, fixating }, "__onExternalGaze", [x, y, fixating]);
+}
 
 /* ---------- camera + landmarker ---------- */
 async function init() {
@@ -372,6 +384,17 @@ function magScan(now) {
 }
 function magnet(gx, gy, now) {
   const dt = Math.min(Math.max((now - magLastT) / 1000, 0.001), 0.1); magLastT = now;
+  // Dense gaze surfaces such as the on-screen keyboard and choice popup contain many
+  // adjacent targets. Sticky-centre capture makes those keys impossible to reach, so
+  // use the calibrated gaze directly while the pointer is over one of these surfaces.
+  try {
+    if (window.parent !== window && window.frameElement) {
+      const frame = window.frameElement.getBoundingClientRect();
+      const surface = window.parent.document.elementFromPoint(gx + frame.left, gy + frame.top)
+        ?.closest('[data-gaze-precision-surface]');
+      if (surface) { stick = null; magOff = [0, 0]; return [gx, gy]; }
+    }
+  } catch {}
   let tx = 0, ty = 0;
   if (MAG.on && state === "tracking") {
     magScan(now);
@@ -619,6 +642,18 @@ $("go").onclick = () => { setPointer(true); enableTracking(); };
 // Exposed for the host dashboard's "Recalibrate" button (frontend/index.html), called via
 // iframe.contentWindow.recalibrateGaze() -- works even while the iframe itself is pointer-events:none.
 window.recalibrateGaze = enableTracking;
+addEventListener("message", event => {
+  if (event.source !== window.parent || event.data?.source !== "whack-dashboard" ||
+      event.data.type !== "command") return;
+  if (event.data.method === "recalibrateGaze") enableTracking();
+  if (event.data.method === "refineGazeFromSelection") {
+    const rect = event.data.args?.[0];
+    if (rect && [rect.left, rect.top, rect.right, rect.bottom].every(Number.isFinite) &&
+        rect.right >= rect.left && rect.bottom >= rect.top) {
+      window.refineGazeFromSelection(rect);
+    }
+  }
+});
 
 // When embedded (?embed=1), drop the opaque page background so the host dashboard shows through,
 // and restyle the dev-tool-styled bar/panel/message box to match the Capital One dashboard instead

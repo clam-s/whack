@@ -47,12 +47,12 @@
         scale: 1.12;
       }
     }
-    .high-contrast :is(#voiceAssistantDrawer, #linkedAccountDialog, #linkedAccountPanel) {
+    .high-contrast :is(#linkedAccountDialog, #linkedAccountPanel) {
       background: #000 !important;
       color: #fff !important;
       border-color: #fff !important;
     }
-    .high-contrast :is(#voiceAssistantDrawer, #linkedAccountDialog, #linkedAccountPanel) :is(p, label, h2, input, #voiceStateContainer, #voiceStateContainer div, #voiceStateContainer span) {
+    .high-contrast :is(#linkedAccountDialog, #linkedAccountPanel) :is(p, label, h2, input) {
       background: #000 !important;
       color: #fff !important;
       border-color: #fff !important;
@@ -145,12 +145,23 @@
     button, a, [data-nav] {
       transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
     }
+    @keyframes controlHoverExpand {
+      0% { transform: scale(1); }
+      65% { transform: scale(1.09) translateY(-3px); }
+      100% { transform: scale(1.05) translateY(-2px); }
+    }
+    @keyframes gazeTargetExpand {
+      0% { transform: scale(1); }
+      65% { transform: scale(1.11) translateY(-4px); }
+      100% { transform: scale(1.06) translateY(-2px); }
+    }
     @media (hover: hover) {
       button:not(:disabled):hover, a:hover, [data-nav]:hover {
         position: relative;
         z-index: 25;
         transform: scale(1.05) translateY(-2px);
         box-shadow: 0 8px 18px -8px rgba(0, 30, 60, 0.32);
+        animation: controlHoverExpand 240ms cubic-bezier(.2,.8,.2,1) both;
       }
     }
     button:not(:disabled):focus-visible, a:focus-visible, [data-nav]:focus-visible,
@@ -160,21 +171,24 @@
       transform: scale(1.07) translateY(-3px);
       box-shadow: 0 10px 22px -8px rgba(0, 30, 60, 0.32);
     }
+    .gaze-active-target {
+      transition: transform 180ms ease-out, box-shadow 180ms ease-out, filter 70ms linear;
+      animation: gazeTargetExpand 260ms cubic-bezier(.2,.8,.2,1) both;
+      will-change: transform;
+    }
+    #brandLogoLink, #brandLogoLink:hover, #brandLogoLink:focus-visible,
+    #brandLogoLink.gaze-active-target {
+      transform: none !important;
+      animation: none !important;
+    }
 
-    /* Gaze Dwell-to-Click Ring: fills clockwise over the dwell duration set in JS
-       (GazeDwell.MS); on completion the dwell logic fires a real click(). */
-    #gazeDwellRing {
-      transition: stroke-dashoffset linear;
-      opacity: 0;
-    }
-    #gazeDwellRing.filling { opacity: 1; }
-    @keyframes gazeDwellComplete {
-      0% { transform: scale(1); }
-      40% { transform: scale(1.6); }
-      100% { transform: scale(1); opacity: 0; }
-    }
-    #gazeDwellRing.complete {
-      animation: gazeDwellComplete 0.35s ease-out forwards;
+    #gazeKeyboard, #gazeChoiceMenu { box-shadow: 0 18px 50px -16px rgba(0, 20, 40, .55); }
+    #gazeKeyboard { max-height: min(28vh, 270px); overflow-y: auto; }
+    .gaze-key { min-width: 36px; min-height: 36px; touch-action: manipulation; font-size: .9rem; }
+    @media (max-width: 640px) {
+      #gazeNumberKeys { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+      #gazeKeyboard { max-height: min(34vh, 260px); }
+      .gaze-key { min-width: 0; min-height: 34px; font-size: .8rem; }
     }
   </style>
 </head>
@@ -194,11 +208,11 @@
       
       <!-- Brand Logo -->
       <div class="flex items-center space-x-3">
-        <a href="#checking" data-voice-label="Home" id="brandLogoLink" class="flex items-center p-1 rounded-sm focus:outline-none min-h-[44px]" aria-label="Capital One Home - Navigate to Checking Dashboard">
-          <svg class="h-8 w-auto" viewBox="0 0 280 65" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Capital One Logo">
-            <text x="10" y="44" font-family="'Inter', sans-serif" font-weight="900" font-style="italic" font-size="34" fill="#004879" letter-spacing="-0.5">Capital</text>
-            <text x="135" y="44" font-family="'Inter', sans-serif" font-weight="400" font-style="italic" font-size="34" fill="#004879">One</text>
-            <path d="M125 10 C155 12, 195 24, 215 36 C180 30, 140 22, 125 10 Z" fill="#D03027" />
+        <a href="#checking" data-voice-label="Home" id="brandLogoLink" class="flex items-center p-1 rounded-sm focus:outline-none min-h-[44px]" aria-label="Capital Won Home - Navigate to Checking Dashboard">
+          <svg class="h-8 w-auto" viewBox="0 0 280 65" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Capital Won">
+            <path d="M104 20 C148 2 214 2 246 15 C260 21 250 33 230 45 C241 31 240 25 227 21 C198 12 151 14 107 27 Z" fill="#D03027" />
+            <text x="10" y="47" font-family="'Inter', sans-serif" font-weight="900" font-style="italic" font-size="35" fill="#004879" letter-spacing="-0.7">Capital</text>
+            <text x="143" y="47" font-family="'Inter', sans-serif" font-weight="900" font-style="italic" font-size="35" fill="#004879" letter-spacing="-0.7">Won</text>
           </svg>
         </a>
       </div>
@@ -206,26 +220,13 @@
       <!-- Header Tools & Accessible Voice Panel Trigger -->
       <div class="flex items-center flex-wrap gap-2 sm:gap-3">
         
-        <!-- High Contrast Mode Toggle -->
-        <button
-          data-voice-label="Contrast" id="highContrastToggle"
-          class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-100 text-c1-textMuted font-semibold text-xs min-h-[44px] transition"
-          aria-pressed="false"
-          aria-label="Toggle High Contrast Mode"
-        >
-          <svg class="w-4 h-4 text-slate-700" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 010-12v12z" />
-          </svg>
-          <span class="hidden sm:inline">Contrast</span>
-        </button>
-
         <!-- Live Webcam Eye Tracking -->
         <button
           data-voice-label="Eye Tracking" id="liveEyeTrackingToggle"
           class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-slate-300 hover:bg-slate-100 text-c1-navy font-bold text-xs min-h-[44px] transition"
           aria-pressed="false"
           aria-label="Toggle live webcam eye tracking"
-          title="Use webcam gaze tracking to select dashboard controls"
+          title="Use gaze to select controls; dwell on text fields to open the keyboard and on choice fields to open their options"
         >
           <svg class="w-4 h-4 text-c1-navy" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -256,13 +257,12 @@
           <span class="hidden sm:inline">Listen Aloud</span>
         </button>
 
-        <!-- Voice Assistant Placeholder Button (Designed for Voice Layer - Step 3) -->
+        <!-- Compact voice assistant control -->
         <button
           data-voice-label="Voice Assistant" id="voiceAssistantBtn"
           class="inline-flex items-center space-x-2 px-3.5 py-2 bg-c1-navy hover:bg-c1-lightNavy text-white font-semibold text-xs rounded-full shadow-sm min-h-[44px] transition"
-          aria-expanded="false"
-          aria-controls="voiceAssistantDrawer"
-          aria-label="Open Voice Assistant Panel (State: Ready)"
+          aria-label="Voice assistant ready. Click to start or stop speaking; hold Control and Space to speak hands-free."
+          title="Click to start or stop speaking, or hold Control + Space and release to send."
         >
           <span id="voiceStatusIndicatorDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
           <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -283,73 +283,27 @@
     </div>
   </header>
 
-  <!-- ================= EMPTY VOICE ASSISTANT PANEL (STEP 3 SPEC) ================= -->
-  <!-- States: listening / thinking / confirming / done -->
-  <aside
-    id="voiceAssistantDrawer"
-    class="bg-white border-b-2 border-c1-navy shadow-lg transition-all duration-300 overflow-hidden"
-    style="max-height: 0px;"
-    aria-label="Voice Assistant Layer (Ready for Integration)"
+  <!-- Non-visual controls used by the top-bar voice assistant and accessibility helpers. -->
+  <div
+    id="voiceAssistantRuntime"
+    hidden
+    aria-hidden="true"
   >
-    <div class="max-w-[1720px] mx-auto p-4 sm:p-6 space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
-        <div class="flex items-center space-x-3">
-          <div class="w-3 h-6 bg-c1-navy rounded-xs"></div>
-          <div>
-            <h2 class="text-sm font-bold uppercase tracking-wider text-c1-navy">Voice Assistant</h2>
-            <p class="text-xs text-c1-textMuted">Say or type a command such as “show balance” or “take me to savings”.</p>
-          </div>
-        </div>
-
-        <button id="closeVoiceDrawer" type="button" class="p-2 min-h-[44px]" aria-label="Close Voice Assistant">&times;</button>
-      </div>
-      <div class="flex flex-wrap gap-2">
-        <button id="backendAccountBtn" type="button" class="rounded border border-slate-400 px-3 min-h-[44px]">Demo account sign-in</button>
-        <button id="readAloudToggle" type="button" aria-pressed="false" class="rounded border border-slate-400 px-3 min-h-[44px]">Read aloud</button>
-        <button id="readTabBtn" type="button" disabled class="rounded border border-slate-400 px-3 min-h-[44px] disabled:opacity-50">Read this tab</button>
-        <button id="magnificationToggle" type="button" aria-pressed="false" class="rounded border border-slate-400 px-3 min-h-[44px]">Magnify on hover</button>
-      </div>
-      <form id="voiceCommandForm" class="space-y-2">
-        <label for="voiceCommand">Voice or typed command</label>
-        <input id="voiceCommand" class="block w-full rounded border border-slate-400 p-2" required>
-        <p id="voiceTranscriptPreview" class="text-sm" hidden></p>
-        <div class="flex flex-wrap gap-2">
-          <button id="voiceMicrophone" type="button" class="rounded bg-c1-navy px-3 min-h-[44px] text-white">Start microphone</button>
-          <button id="testAgentVoice" type="button" class="rounded border border-slate-400 px-3 min-h-[44px]">Test voice</button>
-          <button id="sendVoiceCommand" type="submit" class="rounded bg-c1-navy px-3 min-h-[44px] text-white">Send command</button>
-          <button type="button" data-quick-command="show balance" class="rounded border px-3 min-h-[44px]">Show balance</button>
-          <button type="button" data-quick-command="open savings" class="rounded border px-3 min-h-[44px]">Open savings</button>
-          <button type="button" data-quick-command="show recent transactions" class="rounded border px-3 min-h-[44px]">Recent transactions</button>
-        </div>
-        <p class="text-sm text-slate-600">Hold <kbd>Control</kbd> + <kbd>Space</kbd> to speak; release to send. For payments, say “confirm payment” or “cancel payment” after reviewing the dialog.</p>
-        <p class="text-sm text-slate-600">You can also try “click Contrast”, “click View All Recent Transactions”, or “show transactions from Spotify”.</p>
-      </form>
-      <p id="voiceCommandStatus" class="text-sm" role="status"></p>
-      <section class="rounded border border-slate-200 bg-slate-50 p-3" aria-labelledby="voiceActivityHeading">
-        <h3 id="voiceActivityHeading" class="text-xs font-bold uppercase tracking-wide text-slate-600">Recent voice activity</h3>
-        <ol id="voiceActivityLog" class="mt-2 max-h-36 space-y-1 overflow-y-auto text-sm text-slate-800" role="log" aria-live="polite" aria-relevant="additions"></ol>
-        <p class="mt-2 text-xs text-slate-500">Shows recording, transcription, OpenRouter, and action results on this device.</p>
-      </section>
-
-      <!-- State Presentation Card -->
-      <div id="voiceStateContainer" class="p-4 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
-        <div class="flex items-center space-x-3">
-          <div id="voiceStateIcon" class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
-            ✓
-          </div>
-          <div>
-            <div id="voiceStateTitle" class="text-sm font-bold text-slate-800">State: Done / Ready</div>
-            <div id="voiceStateDescription" class="text-xs text-slate-500">The assistant is idle and ready for voice input. No background network requests active.</div>
-          </div>
-        </div>
-        <div class="text-right">
-          <span class="inline-flex items-center px-2 py-1 rounded text-xs font-mono bg-white border border-slate-300 text-slate-700">
-            Registry: 11 Actions Documented
-          </span>
-        </div>
-      </div>
-    </div>
-  </aside>
+    <button id="backendAccountBtn" type="button">Account sign-in</button>
+    <button id="readAloudToggle" type="button" aria-pressed="false">Read aloud</button>
+    <button id="readTabBtn" type="button" disabled>Read this tab</button>
+    <button id="magnificationToggle" type="button" aria-pressed="false">Magnify on hover</button>
+    <form id="voiceCommandForm">
+      <label for="voiceCommand">Voice command</label>
+      <input id="voiceCommand" required>
+      <p id="voiceTranscriptPreview" hidden></p>
+      <button id="voiceMicrophone" type="button">Start microphone</button>
+      <button id="sendVoiceCommand" type="submit">Send command</button>
+    </form>
+    <p id="voiceCommandStatus" role="status" aria-live="polite"></p>
+    <ol id="voiceActivityLog" role="log" aria-live="polite"></ol>
+    <div id="voiceStateContainer"><span id="voiceStateIcon"></span><span id="voiceStateTitle"></span><span id="voiceStateDescription"></span></div>
+  </div>
 
   <!-- ================= GLOBAL NOTIFICATION BANNER ================= -->
   <div id="notificationBanner" class="hidden border-b px-4 py-2.5 text-xs transition-all" role="alert" aria-live="assertive">
@@ -456,12 +410,12 @@
       <main id="mainContent" class="lg:col-span-9 xl:col-span-10 min-h-[550px]" role="main" tabindex="-1">
         
         <section id="linkedAccountPanel" hidden class="card bg-white rounded-xl border border-slate-200 p-5 mb-4" aria-labelledby="linkedAccountHeading">
-          <h2 id="linkedAccountHeading" class="font-bold">Linked demo account</h2>
+          <h2 id="linkedAccountHeading" class="font-bold">Linked account</h2>
           <p id="linkedAccountName"></p>
           <p id="linkedAccountBalance" tabindex="0"></p>
           <ul id="linkedAccountTransactions" class="mt-2 space-y-1"></ul>
         </section>
-        <p class="text-sm text-white mb-2">Example dashboard data</p>
+        <p class="text-xs text-white/75 mb-2">Sample account activity · changes stay in this dashboard and do not move funds. Independent prototype, not affiliated with Capital One.</p>
         <!-- DYNAMIC VIEW INJECTION CONTAINER -->
         <div id="viewContainer" class="space-y-5">
           <!-- Views rendered by JavaScript based on state.currentPage -->
@@ -473,9 +427,9 @@
   </div>
 
   <dialog id="linkedAccountDialog" aria-labelledby="linkedAccountDialogTitle" class="m-auto w-[min(28rem,90vw)] rounded-xl border p-5 backdrop:bg-black/60">
-    <h2 id="linkedAccountDialogTitle" class="font-bold">Linked demo account</h2>
+    <h2 id="linkedAccountDialogTitle" class="font-bold">Account sign-in</h2>
     <form id="linkedAccountForm" class="space-y-3">
-      <p>Use <code>demo-user</code> with password <code>whack-demo-only</code>.</p>
+      <p>Sample sign-in: <code>demo-user</code> / <code>whack-demo-only</code>.</p>
       <label class="block">User ID <input name="userId" autocomplete="username" required class="block w-full rounded border p-2"></label>
       <label class="block">Password <input name="password" type="password" autocomplete="current-password" required class="block w-full rounded border p-2"></label>
       <button class="rounded bg-c1-navy px-3 min-h-[44px] text-white">Sign in</button>
@@ -501,7 +455,7 @@
         </div>
         <div>
           <h2 id="confirmModalHeading" class="text-base font-bold text-slate-900">Confirm Money Movement</h2>
-          <p class="text-xs text-c1-textMuted">Please review the transaction details carefully.</p>
+          <p class="text-xs text-c1-textMuted">Please review the transaction details carefully. Confirming records the change in this dashboard; it does not move money through a bank.</p>
         </div>
       </div>
 
@@ -546,8 +500,8 @@
     src="about:blank"
     class="hidden fixed inset-0 w-full h-full border-0 z-[70]"
   ></iframe>
-  <!-- Gaze cursor: a small dot (color = fixating vs. saccading) plus a ring that fills over the
-       1s dwell period when gaze lands on something clickable -- dwelling it out acts as a click. -->
+  <!-- Gaze cursor: a small dot changes color during fixation; the hovered control darkens over
+       the 1s dwell period to show pending activation. -->
   <svg
     id="gazeCursorDot"
     class="hidden fixed z-[71] pointer-events-none transition-[left,top] duration-100 ease-out"
@@ -556,27 +510,28 @@
     aria-hidden="true"
   >
     <circle cx="22" cy="22" r="17" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="2" />
-    <circle
-      id="gazeDwellRing"
-      cx="22" cy="22" r="17" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round"
-      stroke-dasharray="106.8" stroke-dashoffset="106.8"
-      transform="rotate(-90 22 22)"
-    />
     <circle id="gazeCursorCore" cx="22" cy="22" r="4" fill="#fbbf24" />
   </svg>
 
-  <!-- ================= FOOTER LANDMARK ================= -->
-  <footer class="bg-c1-darkNavy text-slate-300 border-t border-white/10 mt-auto py-4 px-4 text-center text-xs" role="contentinfo">
-    <div class="max-w-[1720px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-      <div class="flex items-center space-x-2">
-        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-        <span class="font-semibold text-white">Capital One Accessibility Dashboard &bull; WHACK 2026</span>
-      </div>
-      <div class="text-[11px] text-slate-300">
-        Demo with fictional data. Not affiliated with Capital One.
+  <section id="gazeKeyboard" data-gaze-precision-surface hidden class="fixed z-[70] bottom-3 left-1/2 -translate-x-1/2 w-[min(760px,calc(100vw-24px))] rounded-xl border-2 border-slate-300 bg-white p-1.5 text-slate-900" role="group" aria-label="On-screen QWERTY keyboard">
+    <div class="mb-2 flex items-center justify-between gap-2">
+      <p id="gazeKeyboardLabel" class="text-sm font-semibold text-slate-600">Choose a text field, then type with your gaze</p>
+      <div class="flex gap-2">
+        <button type="button" data-gaze-key-action="cancel" data-voice-ignore class="gaze-key rounded-lg border border-slate-300 px-3 text-sm">Cancel</button>
+        <button type="button" data-gaze-key-action="done" data-voice-ignore class="gaze-key rounded-lg bg-c1-navy px-3 text-sm font-semibold text-white">Done</button>
       </div>
     </div>
-  </footer>
+    <div id="gazeNumberKeys" class="mb-1 grid grid-cols-12 gap-1"></div>
+    <div id="gazeTopLetters" class="mb-1 grid grid-cols-10 gap-1"></div>
+    <div id="gazeHomeLetters" class="mb-1 grid grid-cols-9 gap-1 px-[4%]"></div>
+    <div id="gazeBottomLetters" class="mb-1 grid grid-cols-10 gap-1"></div>
+    <div id="gazeSymbolKeys" class="grid grid-cols-7 gap-1"></div>
+  </section>
+  <section id="gazeChoiceMenu" data-gaze-precision-surface hidden class="fixed z-[70] w-[min(360px,calc(100vw-16px))] max-h-[min(55vh,420px)] overflow-y-auto rounded-xl border border-slate-300 bg-white p-2 text-slate-900" role="dialog" aria-label="Choose an option">
+    <p id="gazeChoiceTitle" class="px-3 pb-1 text-xs font-semibold text-slate-500">Choose an option</p>
+    <div id="gazeChoiceOptions" role="listbox" class="space-y-1"></div>
+    <button type="button" data-gaze-choice-cancel class="mt-2 min-h-[44px] w-full rounded-lg border border-slate-300 px-3 text-sm font-semibold hover:bg-slate-50" data-voice-ignore>Close choices</button>
+  </section>
 
   <!-- ================= APP SCRIPT ================= -->
   <script src="./actions.js"></script>
@@ -595,7 +550,6 @@
       toggleCardLock,
       requestOpenAccount,
       cancelUpcomingPayment,
-      toggleHighContrast,
       clearNotification,
       formatCurrency,
       formatDate
@@ -608,7 +562,6 @@
     const notificationIcon = document.getElementById('notificationIcon');
     const notificationText = document.getElementById('notificationText');
     const dismissNotificationBtn = document.getElementById('dismissNotificationBtn');
-    const highContrastToggle = document.getElementById('highContrastToggle');
     const confirmationModal = document.getElementById('confirmationModal');
     const confirmModalHeading = document.getElementById('confirmModalHeading');
     const confirmModalSummary = document.getElementById('confirmModalSummary');
@@ -618,18 +571,8 @@
 
     // Voice Assistant Preview elements
     const voiceAssistantBtn = document.getElementById('voiceAssistantBtn');
-    const voiceAssistantDrawer = document.getElementById('voiceAssistantDrawer');
-    const closeVoiceDrawer = document.getElementById('closeVoiceDrawer');
     const voiceBadgeState = document.getElementById('voiceBadgeState');
     const voiceStatusIndicatorDot = document.getElementById('voiceStatusIndicatorDot');
-    const voiceStateIcon = document.getElementById('voiceStateIcon');
-    const voiceStateTitle = document.getElementById('voiceStateTitle');
-    const voiceStateDescription = document.getElementById('voiceStateDescription');
-
-    // --- High Contrast Toggle ---
-    highContrastToggle.addEventListener('click', () => {
-      toggleHighContrast();
-    });
 
     // --- Live eye tracking and gaze dwell selection ---
     const speakAccountBtn = document.getElementById('speakAccountBtn');
@@ -641,20 +584,228 @@
     // Gaze target: clickable controls only. The same target grows and receives dwell-to-click.
     let expandTarget = null, pendingExpandTarget = null, pendingExpandSince = 0;
     let dwellTimer = null;
+    let lastDwelledTarget = null;
     const liveEyeTrackingToggle = document.getElementById('liveEyeTrackingToggle');
     const liveEyeTrackingBadge = document.getElementById('liveEyeTrackingBadge');
     const recalibrateEyeTrackingBtn = document.getElementById('recalibrateEyeTrackingBtn');
     const liveEyeTrackingFrame = document.getElementById('liveEyeTrackingFrame');
     const gazeCursorDot = document.getElementById('gazeCursorDot');
     const gazeCursorCore = document.getElementById('gazeCursorCore');
-    const gazeDwellRing = document.getElementById('gazeDwellRing');
+    function callEyeTracker(method, args = []) {
+      try {
+        const callback = liveEyeTrackingFrame.contentWindow?.[method];
+        if (typeof callback === 'function') return callback(...args);
+      } catch { /* file:// iframes use the message bridge below */ }
+      try {
+        liveEyeTrackingFrame.contentWindow?.postMessage({
+          source: 'whack-dashboard', type: 'command', method, args
+        }, '*');
+      } catch {}
+    }
 
     // Raw gaze is jittery even while "settled" (head/webcam noise, not real intent), so a target
     // must hold still under gaze for GAZE_SETTLE_MS before it is selected.
     const GAZE_SETTLE_MS = 110;
     const GAZE_DWELL_CLICK_MS = 1000;
-    const GAZE_DWELL_RING_CIRCUMFERENCE = 106.8; // 2 * PI * r(17), matches the SVG ring above
-    const GAZE_CLICKABLE_SELECTOR = 'button, [data-nav], a';
+    const GAZE_TEXT_FIELD_SELECTOR = 'input:not([type]):not(:disabled):not([readonly]), input[type="text"]:not(:disabled):not([readonly]), input[type="search"]:not(:disabled):not([readonly]), input[type="email"]:not(:disabled):not([readonly]), input[type="tel"]:not(:disabled):not([readonly]), input[type="url"]:not(:disabled):not([readonly]), input[type="password"]:not(:disabled):not([readonly]), input[type="number"]:not(:disabled):not([readonly]), textarea:not(:disabled):not([readonly])';
+    const GAZE_CHOICE_SELECTOR = 'select:not(:disabled)';
+    const GAZE_CLICKABLE_SELECTOR = `button:not(:disabled), [data-nav], a[href], [role="button"], ${GAZE_TEXT_FIELD_SELECTOR}, ${GAZE_CHOICE_SELECTOR}`;
+    const gazeKeyboard = document.getElementById('gazeKeyboard');
+    const gazeKeyboardLabel = document.getElementById('gazeKeyboardLabel');
+    const gazeNumberKeys = document.getElementById('gazeNumberKeys');
+    const gazeTopLetters = document.getElementById('gazeTopLetters');
+    const gazeHomeLetters = document.getElementById('gazeHomeLetters');
+    const gazeBottomLetters = document.getElementById('gazeBottomLetters');
+    const gazeSymbolKeys = document.getElementById('gazeSymbolKeys');
+    const gazeChoiceMenu = document.getElementById('gazeChoiceMenu');
+    const gazeChoiceTitle = document.getElementById('gazeChoiceTitle');
+    const gazeChoiceOptions = document.getElementById('gazeChoiceOptions');
+    let gazeKeyboardTarget = null;
+    let gazeKeyboardOriginalValue = '';
+    let gazeChoiceSelect = null;
+    let suppressChoiceSelect = null;
+    let gazeKeyboardShift = false;
+
+    function makeGazeKey(label, value, action, extraClass = '') {
+      const key = document.createElement('button');
+      key.type = 'button';
+      key.className = `gaze-key rounded-lg border border-slate-300 bg-slate-50 text-base font-semibold hover:bg-blue-50 ${extraClass}`;
+      key.textContent = label;
+      key.dataset.voiceIgnore = '';
+      if (value !== undefined) key.dataset.gazeKey = value;
+      if (action) key.dataset.gazeKeyAction = action;
+      if (label === 'Space') key.setAttribute('aria-label', 'Insert space');
+      else if (label === 'Backspace') key.setAttribute('aria-label', 'Delete previous character');
+      return key;
+    }
+    for (let digit = 1; digit <= 9; digit++) gazeNumberKeys.append(makeGazeKey(String(digit), String(digit)));
+    gazeNumberKeys.append(makeGazeKey('0', '0'));
+    gazeNumberKeys.append(makeGazeKey('.', '.'));
+    gazeNumberKeys.append(makeGazeKey('⌫', undefined, 'backspace', 'text-sm'));
+    'qwertyuiop'.split('').forEach((key) => gazeTopLetters.append(makeGazeKey(key, key)));
+    'asdfghjkl'.split('').forEach((key) => gazeHomeLetters.append(makeGazeKey(key, key)));
+    gazeBottomLetters.append(makeGazeKey('Shift', undefined, 'shift', 'text-sm'));
+    'zxcvbnm'.split('').forEach((key) => gazeBottomLetters.append(makeGazeKey(key, key)));
+    gazeBottomLetters.append(makeGazeKey('Backspace', undefined, 'backspace', 'col-span-2 text-sm'));
+    ['@', '.', '-', "'", ','].forEach((key) => gazeSymbolKeys.append(makeGazeKey(key, key, undefined, 'text-sm')));
+    gazeSymbolKeys.append(makeGazeKey('Space', undefined, 'space', 'col-span-2 text-sm'));
+
+    function isGazeTextField(element) {
+      return element instanceof HTMLElement && element.matches(GAZE_TEXT_FIELD_SELECTOR);
+    }
+    function hideGazeKeyboard(restore = false) {
+      if (restore && gazeKeyboardTarget) {
+        gazeKeyboardTarget.value = gazeKeyboardOriginalValue;
+        gazeKeyboardTarget.dispatchEvent(new Event('input', { bubbles: true }));
+        gazeKeyboardTarget.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      gazeKeyboard.hidden = true;
+      gazeKeyboardTarget = null;
+      gazeKeyboardShift = false;
+    }
+    function showGazeKeyboard(target = document.activeElement) {
+      if (!liveEyeTrackingActive || !isGazeTextField(target)) return;
+      const field = target;
+      if (gazeKeyboardTarget !== field) {
+        gazeKeyboardTarget = field;
+        gazeKeyboardOriginalValue = field.value;
+      }
+      const label = field.labels?.[0]?.textContent?.trim() || field.getAttribute('aria-label') || field.placeholder;
+      gazeKeyboardLabel.textContent = label
+        ? `${field.type === 'number' ? 'Enter a number in' : 'Type in'} ${label}`
+        : 'Type with your gaze';
+      gazeKeyboard.classList.toggle('gaze-numeric-only', field.type === 'number');
+      gazeKeyboard.hidden = false;
+      positionGazeKeyboard();
+      hideGazeChoices();
+    }
+    function positionGazeKeyboard() {
+      if (gazeKeyboard.hidden) return;
+      gazeKeyboard.style.top = 'auto';
+      gazeKeyboard.style.bottom = '12px';
+    }
+    function hideGazeChoices() {
+      if (gazeChoiceSelect) gazeChoiceSelect.setAttribute('aria-expanded', 'false');
+      gazeChoiceSelect = null;
+      gazeChoiceOptions.replaceChildren();
+      gazeChoiceMenu.hidden = true;
+    }
+    function openGazeChoices(select) {
+      hideGazeKeyboard();
+      if (gazeChoiceSelect === select) return;
+      hideGazeChoices();
+      gazeChoiceSelect = select;
+      select.setAttribute('aria-haspopup', 'listbox');
+      select.setAttribute('aria-controls', 'gazeChoiceOptions');
+      select.setAttribute('aria-expanded', 'true');
+      Array.from(select.options).forEach((option, index) => {
+        if (option.disabled) return;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'min-h-[48px] w-full rounded-lg px-3 text-left text-sm hover:bg-blue-50 focus-visible:bg-blue-50';
+        button.setAttribute('role', 'option');
+        button.setAttribute('aria-selected', String(option.selected));
+        button.dataset.gazeChoiceIndex = String(index);
+        button.dataset.voiceIgnore = '';
+        button.textContent = option.label || option.textContent.trim() || `Option ${index + 1}`;
+        gazeChoiceOptions.append(button);
+      });
+      gazeChoiceTitle.textContent = select.labels?.[0]?.textContent?.trim() || 'Choose an option';
+      gazeChoiceMenu.hidden = false;
+      const rect = select.getBoundingClientRect();
+      const menuRect = gazeChoiceMenu.getBoundingClientRect();
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuRect.width - 8));
+      const below = rect.bottom + 8;
+      const top = below + menuRect.height <= window.innerHeight - 8
+        ? below : Math.max(8, rect.top - menuRect.height - 8);
+      gazeChoiceMenu.style.left = `${left}px`;
+      gazeChoiceMenu.style.top = `${top}px`;
+    }
+    function writeGazeField(value, removePrevious = false) {
+      const target = gazeKeyboardTarget;
+      if (!target) return;
+      if (target.type === 'number' && value && !/^[0-9.]$/.test(value)) return;
+      const start = target.selectionStart;
+      const end = target.selectionEnd;
+      if (removePrevious) {
+        if (start !== null && end !== null && start !== end) {
+          target.setRangeText('', start, end, 'end');
+        } else if (start !== null && end !== null && start > 0) {
+          target.setRangeText('', start - 1, end, 'end');
+        } else {
+          target.value = target.value.slice(0, -1);
+        }
+      } else if (start !== null && end !== null && typeof target.setRangeText === 'function') {
+        target.setRangeText(value, start, end, 'end');
+      } else {
+        target.value += value;
+      }
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    gazeKeyboard.addEventListener('pointerdown', (event) => {
+      if (event.target instanceof Element && event.target.closest('button')) event.preventDefault();
+    });
+    gazeKeyboard.addEventListener('click', (event) => {
+      const button = event.target instanceof Element ? event.target.closest('button') : null;
+      if (!button) return;
+      const action = button.dataset.gazeKeyAction;
+      if (action === 'done') {
+        gazeKeyboardTarget?.dispatchEvent(new Event('change', { bubbles: true }));
+        hideGazeKeyboard();
+      } else if (action === 'cancel') {
+        hideGazeKeyboard(true);
+      } else if (action === 'backspace') {
+        writeGazeField('', true);
+      } else if (action === 'space') {
+        writeGazeField(' ');
+      } else if (action === 'shift') {
+        gazeKeyboardShift = !gazeKeyboardShift;
+        gazeKeyboard.querySelectorAll('[data-gaze-key]').forEach((key) => {
+          key.textContent = gazeKeyboardShift ? key.dataset.gazeKey.toUpperCase() : key.dataset.gazeKey;
+        });
+      } else if (button.dataset.gazeKey !== undefined) {
+        writeGazeField(gazeKeyboardShift ? button.dataset.gazeKey.toUpperCase() : button.dataset.gazeKey);
+        if (gazeKeyboardShift) {
+          gazeKeyboardShift = false;
+          gazeKeyboard.querySelectorAll('[data-gaze-key]').forEach((key) => { key.textContent = key.dataset.gazeKey; });
+        }
+      }
+    });
+    gazeChoiceMenu.addEventListener('click', (event) => {
+      const button = event.target instanceof Element ? event.target.closest('[data-gaze-choice-index]') : null;
+      if (button && gazeChoiceSelect) {
+        const owner = gazeChoiceSelect;
+        const option = gazeChoiceSelect.options[Number(button.dataset.gazeChoiceIndex)];
+        if (option && !option.disabled) {
+          gazeChoiceSelect.value = option.value;
+          gazeChoiceSelect.dispatchEvent(new Event('input', { bubbles: true }));
+          gazeChoiceSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          liveAnnouncer.textContent = `${option.label || option.textContent.trim()} selected.`;
+        }
+        hideGazeChoices();
+        lastDwelledTarget = owner;
+        suppressChoiceSelect = owner;
+      } else if (event.target instanceof Element && event.target.closest('[data-gaze-choice-cancel]')) {
+        const owner = gazeChoiceSelect;
+        hideGazeChoices();
+        if (owner) {
+          lastDwelledTarget = owner;
+          suppressChoiceSelect = owner;
+        }
+      }
+    });
+    document.addEventListener('focusin', (event) => {
+      if (!liveEyeTrackingActive || !(event.target instanceof HTMLElement)) return;
+      if (isGazeTextField(event.target)) showGazeKeyboard(event.target);
+      else if (!gazeKeyboard.contains(event.target)) hideGazeKeyboard();
+    });
+    window.addEventListener('resize', positionGazeKeyboard);
+    window.addEventListener('scroll', positionGazeKeyboard, true);
+    window.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (!gazeChoiceMenu.hidden) hideGazeChoices();
+      if (!gazeKeyboard.hidden) hideGazeKeyboard(true);
+    });
     // Gaze only ever arrives once the tracker has finished calibrating (it doesn't call onGaze
     // before reaching its "tracking" state), so this generous hitbox applies specifically to
     // post-calibration gaze, not to mouse/keyboard use of the same page.
@@ -664,10 +815,17 @@
     // (respects real stacking/visibility); if it misses, fall back to the nearest matching element
     // whose bounding box -- padded by GAZE_HITBOX_MARGIN_PX -- contains the gaze point.
     function findGazeTarget(x, y, selector) {
+      const isUsable = (el) => {
+        if (!(el instanceof HTMLElement) || !el.isConnected || el.matches(':disabled')) return false;
+        if (el.closest('[hidden], [inert], [aria-hidden="true"]')) return false;
+        const style = getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden' && style.pointerEvents !== 'none';
+      };
       const exact = document.elementFromPoint(x, y)?.closest(selector);
-      if (exact) return exact;
+      if (exact && isUsable(exact)) return exact;
       let best = null, bestDist = Infinity;
       document.querySelectorAll(selector).forEach((el) => {
+        if (!isUsable(el)) return;
         const r = el.getBoundingClientRect();
         if (r.width === 0 || r.height === 0) return;
         if (x < r.left - GAZE_HITBOX_MARGIN_PX || x > r.right + GAZE_HITBOX_MARGIN_PX ||
@@ -678,31 +836,51 @@
       return best;
     }
 
+    let gazeDarkenInterval = null;
+    let expandOriginalFilter = '';
     function clearGazeExpansion() {
       if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null; }
-      if (expandTarget) expandTarget.classList.remove('gaze-active-target');
+      if (gazeDarkenInterval) { clearInterval(gazeDarkenInterval); gazeDarkenInterval = null; }
+      if (expandTarget) {
+        expandTarget.classList.remove('gaze-active-target');
+        expandTarget.style.filter = expandOriginalFilter;
+      }
+      expandOriginalFilter = '';
       expandTarget = null;
-      gazeDwellRing.classList.remove('filling', 'complete');
-      gazeDwellRing.style.transition = 'none';
-      gazeDwellRing.style.strokeDashoffset = String(GAZE_DWELL_RING_CIRCUMFERENCE);
     }
 
     function startGazeExpansion(target) {
       expandTarget = target;
+      expandOriginalFilter = target.style.filter;
       target.classList.add('gaze-active-target');
-      gazeDwellRing.classList.remove('complete');
-      gazeDwellRing.style.transition = 'none';
-      gazeDwellRing.style.strokeDashoffset = String(GAZE_DWELL_RING_CIRCUMFERENCE);
-      gazeDwellRing.getBoundingClientRect(); // force reflow so the instant reset above isn't animated
-      gazeDwellRing.style.transition = `stroke-dashoffset ${GAZE_DWELL_CLICK_MS}ms linear`;
-      gazeDwellRing.classList.add('filling');
-      gazeDwellRing.style.strokeDashoffset = '0';
+      const startedAt = performance.now();
+      gazeDarkenInterval = setInterval(() => {
+        if (expandTarget !== target) return;
+        const progress = Math.min(1, (performance.now() - startedAt) / GAZE_DWELL_CLICK_MS);
+        target.style.filter = `brightness(${1 - progress * 0.36})`;
+      }, 30);
       dwellTimer = setTimeout(() => {
         if (expandTarget !== target) return;
-        gazeDwellRing.classList.add('complete');
-        const label = (target.innerText || target.getAttribute('aria-label') || target.textContent || '').trim().slice(0, 80);
-        liveAnnouncer.textContent = `Selected by gaze dwell: ${label || 'control'}.`;
-        target.click();
+        lastDwelledTarget = target;
+        target.style.filter = 'brightness(0.64)';
+        const label = (target.labels?.[0]?.textContent || target.getAttribute('aria-label') || target.placeholder || target.innerText || target.textContent || '').trim().slice(0, 80);
+        if (target.matches(GAZE_CHOICE_SELECTOR)) {
+          target.focus({ preventScroll: true });
+          openGazeChoices(target);
+          liveAnnouncer.textContent = `Choices opened for ${label || 'this field'}. Look at an option for one second to select it.`;
+        } else if (isGazeTextField(target)) {
+          target.focus({ preventScroll: true });
+          if (target.selectionStart !== null && typeof target.setSelectionRange === 'function') {
+            target.setSelectionRange(target.value.length, target.value.length);
+          }
+          showGazeKeyboard(target);
+          liveAnnouncer.textContent = `Keyboard opened for ${label || 'this field'}. Hold your gaze on a key for one second; choose Done when finished.`;
+        } else {
+          if (!gazeKeyboard.contains(target)) hideGazeKeyboard();
+          if (!gazeChoiceMenu.contains(target) && target !== gazeChoiceSelect) hideGazeChoices();
+          liveAnnouncer.textContent = `Selected by gaze dwell: ${label || 'control'}.`;
+          target.click();
+        }
         clearGazeExpansion();
       }, GAZE_DWELL_CLICK_MS);
     }
@@ -726,7 +904,11 @@
         gazeCursorDot.classList.add('hidden');
         recalibrateEyeTrackingBtn.classList.add('hidden');
         pendingExpandTarget = null;
+        lastDwelledTarget = null;
         clearGazeExpansion();
+        hideGazeKeyboard();
+        hideGazeChoices();
+        suppressChoiceSelect = null;
         liveAnnouncer.textContent = 'Live eye tracking stopped.';
       }
     }
@@ -736,7 +918,7 @@
       liveEyeTrackingFrame.style.pointerEvents = 'auto';
       liveEyeTrackingBadge.textContent = 'CALIBRATING';
       liveEyeTrackingBadge.className = 'bg-amber-400 text-slate-950 font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-xs shadow-xs';
-      liveEyeTrackingFrame.contentWindow?.recalibrateGaze?.();
+      callEyeTracker('recalibrateGaze');
     });
 
     // Feed the tracker weak supervision from deliberate user selections, including keyboard or
@@ -745,12 +927,13 @@
     document.addEventListener('click', (event) => {
       if (!liveEyeTrackingActive || !event.isTrusted ||
           !(event.target instanceof Element)) return;
+      if (!gazeChoiceMenu.contains(event.target)) hideGazeChoices();
       const selectedControl = event.target.closest(GAZE_CLICKABLE_SELECTOR);
       if (!selectedControl) return;
       const r = selectedControl.getBoundingClientRect();
-      liveEyeTrackingFrame.contentWindow?.refineGazeFromSelection?.({
+      callEyeTracker('refineGazeFromSelection', [{
         left: r.left, top: r.top, right: r.right, bottom: r.bottom
-      });
+      }]);
     }, true);
 
     // Called by the iframe (same origin) whenever its calibration state machine changes.
@@ -760,12 +943,18 @@
         liveEyeTrackingBadge.textContent = 'LIVE';
         liveEyeTrackingBadge.className = 'bg-emerald-400 text-slate-950 font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-xs shadow-xs';
         liveEyeTrackingFrame.style.pointerEvents = 'none'; // hand the page back to the dashboard
-        liveAnnouncer.textContent = 'Eye tracking calibrated. Hold your gaze on a control to select it.';
+        if (isGazeTextField(document.activeElement)) showGazeKeyboard(document.activeElement);
+        else hideGazeKeyboard();
+        liveAnnouncer.textContent = 'Eye tracking ready. The keyboard is at the bottom of the screen. Hold on a control for one second; choice fields open their options.';
       } else {
         liveEyeTrackingFrame.style.pointerEvents = 'auto';
         gazeCursorDot.classList.add('hidden');
         pendingExpandTarget = null;
+        lastDwelledTarget = null;
         clearGazeExpansion();
+        hideGazeKeyboard();
+        hideGazeChoices();
+        suppressChoiceSelect = null;
         if (state === 'error') {
           liveEyeTrackingBadge.textContent = 'RETRY';
           liveAnnouncer.textContent = 'Eye tracking stopped. Use Retry in the camera overlay.';
@@ -788,14 +977,40 @@
       gazeCursorCore.setAttribute('fill', fixating ? '#34d399' : '#fbbf24');
 
       const now = performance.now();
-      // Expansion + dwell-to-click: only real clickable controls (button, [data-nav], a).
-      const expandCandidate = findGazeTarget(x, y, GAZE_CLICKABLE_SELECTOR);
+      // Dwell selects controls, focuses text fields, and opens native choice fields.
+      let gazeTarget = findGazeTarget(x, y, GAZE_CLICKABLE_SELECTOR);
+      if (lastDwelledTarget) {
+        if (gazeTarget === lastDwelledTarget) gazeTarget = null;
+        else lastDwelledTarget = null;
+      }
+      if (suppressChoiceSelect) {
+        if (gazeTarget === suppressChoiceSelect) gazeTarget = null;
+        else suppressChoiceSelect = null;
+      }
+      // Keep an opened select menu stable; a second dwell on one of its visible options
+      // performs the selection, while the original select itself does not reopen it.
+      const expandCandidate = gazeTarget === gazeChoiceSelect ? null : gazeTarget;
       if (expandCandidate !== pendingExpandTarget) { pendingExpandTarget = expandCandidate; pendingExpandSince = now; }
       if (expandCandidate !== expandTarget && now - pendingExpandSince >= GAZE_SETTLE_MS) {
         clearGazeExpansion();
         if (expandCandidate) startGazeExpansion(expandCandidate);
       }
     };
+
+    // Local file pages give their iframes opaque origins, which blocks direct callbacks.
+    // Accept messages only from our own tracker iframe and validate each gaze payload.
+    window.addEventListener('message', (event) => {
+      if (event.source !== liveEyeTrackingFrame.contentWindow ||
+          event.data?.source !== 'whack-eye-tracker') return;
+      if (event.data.type === 'state' && typeof event.data.state === 'string') {
+        window.__onTrackerState(event.data.state);
+      } else if (event.data.type === 'gaze') {
+        const { x, y, fixating } = event.data;
+        if ((x === null && y === null) || (Number.isFinite(x) && Number.isFinite(y))) {
+          window.__onExternalGaze(x, y, Boolean(fixating));
+        }
+      }
+    });
 
     // Speech Synthesis Helper
     function speakText(text) {
@@ -879,69 +1094,24 @@
       liveAnnouncer.textContent = msg;
     });
 
-    // --- Voice Assistant Panel Toggle (Preview) ---
-    let voiceDrawerOpen = false;
-    function updateVoiceDrawer() {
-      voiceAssistantDrawer.inert = !voiceDrawerOpen;
-      voiceAssistantDrawer.style.maxHeight = voiceDrawerOpen ? 'none' : '0px';
-      voiceAssistantBtn.setAttribute('aria-expanded', String(voiceDrawerOpen));
-    }
-    updateVoiceDrawer();
-    voiceAssistantBtn.addEventListener('click', () => {
-      voiceDrawerOpen = !voiceDrawerOpen;
-      updateVoiceDrawer();
-    });
-    closeVoiceDrawer.addEventListener('click', () => {
-      voiceDrawerOpen = false;
-      updateVoiceDrawer();
-    });
-
-    // Voice Assistant State Preview Controls (listening / thinking / confirming / done)
+    // Compact voice status stays in the top bar.
     const voiceStates = {
-      listening: {
-        badge: 'LISTENING',
-        dotClass: 'bg-red-500 animate-ping',
-        icon: '<span class="voice-bar"></span><span class="voice-bar"></span><span class="voice-bar"></span>',
-        iconBg: 'bg-red-100 text-red-700',
-        title: 'State: Listening...',
-        desc: 'Microphone is capturing speech audio using Web Speech API.'
-      },
-      thinking: {
-        badge: 'THINKING',
-        dotClass: 'bg-amber-400 animate-pulse',
-        icon: '<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>',
-        iconBg: 'bg-amber-100 text-amber-800',
-        title: 'State: Thinking / Processing Intent',
-        desc: 'Identifying requested banking action and mapping parameters.'
-      },
-      confirming: {
-        badge: 'CONFIRMING',
-        dotClass: 'bg-blue-400 animate-pulse',
-        icon: '?',
-        iconBg: 'bg-blue-100 text-blue-800',
-        title: 'State: Awaiting Confirmation',
-        desc: 'Action prepared. Prompting user with large Yes/No accessible confirmation dialog.'
-      },
-      done: {
-        badge: 'READY',
-        dotClass: 'bg-emerald-400',
-        icon: '✓',
-        iconBg: 'bg-emerald-100 text-emerald-800',
-        title: 'State: Done / Ready',
-        desc: 'The assistant is idle and ready for voice input. No background network requests active.'
-      }
+      listening: { badge: 'LISTENING', dotClass: 'bg-red-500 animate-ping' },
+      thinking: { badge: 'THINKING', dotClass: 'bg-amber-400 animate-pulse' },
+      confirming: { badge: 'CONFIRM', dotClass: 'bg-blue-400 animate-pulse' },
+      done: { badge: 'READY', dotClass: 'bg-emerald-400' },
+      error: { badge: 'RETRY', dotClass: 'bg-red-500' },
     };
 
-    function setVoiceState(st) {
+    window.setVoiceState = function (st) {
       const cfg = voiceStates[st] || voiceStates.done;
       voiceBadgeState.textContent = cfg.badge;
       voiceStatusIndicatorDot.className = `w-2.5 h-2.5 rounded-full ${cfg.dotClass}`;
-      voiceStateIcon.className = `w-10 h-10 rounded-full flex items-center justify-center font-bold ${cfg.iconBg}`;
-      voiceStateIcon.innerHTML = cfg.icon;
-      voiceStateTitle.textContent = cfg.title;
-      voiceStateDescription.textContent = cfg.desc;
-      voiceAssistantBtn.setAttribute('aria-label', `Voice Assistant Panel (${cfg.title})`);
-    }
+      voiceAssistantBtn.setAttribute('aria-label', `Voice assistant ${cfg.badge.toLowerCase()}. Click to start or stop speaking; hold Control and Space to speak hands-free.`);
+      voiceAssistantBtn.title = st === 'error'
+        ? 'The request could not be completed. Click to try again; hold Control + Space to speak.'
+        : 'Click to start or stop speaking, or hold Control + Space and release to send.';
+    };
 
     // --- Confirmation Modal Controls ---
     confirmActionBtn.addEventListener('click', () => {
@@ -980,16 +1150,7 @@
         }
       });
 
-      // Update High Contrast Mode
-      if (state.highContrast) {
-        document.body.classList.add('high-contrast');
-        highContrastToggle.setAttribute('aria-pressed', 'true');
-        highContrastToggle.classList.add('bg-yellow-300', 'text-black', 'border-yellow-400');
-      } else {
-        document.body.classList.remove('high-contrast');
-        highContrastToggle.setAttribute('aria-pressed', 'false');
-        highContrastToggle.classList.remove('bg-yellow-300', 'text-black', 'border-yellow-400');
-      }
+      document.body.classList.toggle('high-contrast', Boolean(state.highContrast));
 
       // Render Notification
       if (state.notification) {
