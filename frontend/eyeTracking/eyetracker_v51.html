@@ -8,6 +8,11 @@
   :root { color-scheme: dark; --bg:#0b0d10; --fg:#e8eaed; --ac:#4fd1c5; --mut:#8a919a; }
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; overflow:hidden; }
+  /* Embedded mode only (frontend/index.html): body.embed-dim is toggled by setState() -- dimmed
+     while idle/calibrating so the dots are easier to focus on, transparent once tracking so the
+     dashboard underneath is fully visible again. */
+  body.embed-dim { background: rgba(4, 10, 20, 0.38) !important; transition: background 0.4s ease; }
+  body:not(.embed-dim) { background: transparent !important; }
   canvas#c { position:fixed; inset:0; width:100%; height:100%; z-index:6; pointer-events:none; }
   #panel { position:fixed; left:12px; top:12px; width:250px; background:#14181dcc; border:1px solid #2a313a; border-radius:10px; padding:10px; backdrop-filter:blur(6px); z-index:5; }
   #panel h1 { font-size:14px; margin:0 0 6px; color:var(--ac); }
@@ -29,7 +34,7 @@
 <body>
 <canvas id="c"></canvas>
 <video id="vid" playsinline muted></video>
-<div id="bar"><button id="bPtr">Eye pointer: off</button><button id="bRecal" class="hide">Recalibrate</button><button id="bDrift" class="hide">Drift-fix</button></div>
+<div id="bar"><button id="bPtr">Eye pointer: off</button><button id="bRecal" class="hide">Recalibrate</button><button id="bDrift" class="hide">Drift-fix</button><button id="bMag" class="hide">Magnet: on</button></div>
 <div id="panel" class="hide">
   <h1>PreciseGaze</h1>
   <div class="row"><span>State</span><b id="sState">idle</b></div>
@@ -40,7 +45,7 @@
   <div class="row"><span>Calib. CV error</span><b id="sCV">-</b></div>
   <div class="row"><span>Validation error</span><b id="sVal">-</b></div>
   <div class="row"><span>Viewing dist (cm)</span><input id="dist" type="number" value="60" min="25" max="120"></div>
-  <div class="row" style="margin-top:6px"><span><kbd>C</kbd> recalibrate <kbd>D</kbd> drift-fix <kbd>H</kbd> heatmap <kbd>E</kbd> export CSV <kbd>L</kbd> landmarks</span></div>
+  <div class="row" style="margin-top:6px"><span><kbd>C</kbd> recalibrate <kbd>D</kbd> drift-fix <kbd>H</kbd> heatmap <kbd>E</kbd> export CSV <kbd>L</kbd> landmarks <kbd>M</kbd> magnet</span></div>
 </div>
 <div id="center"><div id="msg">
   <h2>Webcam eye tracking</h2>
@@ -137,7 +142,12 @@ function extract(res) {
   const [yaw, pitch, roll] = m ? rotAngles(m) : [0, 0, 0];
   const tx = m ? m[12] : 0, ty = m ? m[13] : 0, tz = m ? m[14] : 0;
   const eye = [r[0], r[1], r[2], l[0], l[1], l[2]], lin = [r[4], r[5], l[4], l[5]], zd = 1.2 * vw / ((r[6] + l[6]) / 2);
-  return { eye, lin, head: [yaw, pitch, roll, tx / 10, ty / 10, tz / 100, zd], blink, L, bs };
+  const oc = e => Math.hypot((L[e.up].x - L[e.lo].x) * vw, (L[e.up].y - L[e.lo].y) * vh) / Math.max(Math.hypot((L[e.a].x - L[e.b].x) * vw, (L[e.a].y - L[e.b].y) * vh), 1e-3);
+  // Looking down lowers the lids and raises the raw blink score too, so subtract part of the look-down signal:
+  // eb is "blink score with downward gaze discounted" and is what all blink decisions use.
+  const ld = Math.min(bs.eyeLookDownLeft || 0, bs.eyeLookDownRight || 0), eb = Math.max(0, blink - 0.5 * ld);
+  const open = (oc(EYES[0]) + oc(EYES[1])) / 2; // eyelid opening / eye width: drops during blinks AND partial closure the blink score misses
+  return { eye, lin, head: [yaw, pitch, roll, tx / 10, ty / 10, tz / 100, zd], blink, eb, open, L, bs };
 }
 function expand(f) { // eye poly-2 + head linear (no bias here)
   const e = f.eye, out = [...e];
@@ -148,7 +158,7 @@ function expand(f) { // eye poly-2 + head linear (no bias here)
 /* ---------- gaze model ---------- */
 class GazeModel {
   constructor() { this.S = []; this.ok = false; }
-  add(f, x, y, w = 1, grp = -1) { this.S.push({ v: expand(f), x, y, w, g: grp }); }
+  add(f, x, y, w = 1, grp = -1) { this.S.push({ v: expand(f), x, y, w, g: grp, o: f.open }); }
   prep() {
     const n = this.S[0].v.length; this.mu = new Array(n).fill(0); this.sd = new Array(n).fill(0);
     this.S.forEach(s => s.v.forEach((a, i) => this.mu[i] += a / this.S.length));
@@ -187,6 +197,7 @@ class GazeModel {
     this.g = 0.3 / this.S[0].v.length; if (!fast) this.krLam = this.cvKRR(keep);
     if (this.krLam) this.kr = this.fitKRR(sub(keep, 300), this.krLam, m);
     const hv = this.S.map(s => s.v.slice(-7)); this.hmu = hv[0].map((_, i) => hv.reduce((a, r) => a + r[i], 0) / hv.length);
+    this.openBase = median(this.S.map(s => s.o).filter(Number.isFinite)); // typical eyelid opening during calibration
   }
   predictWith(m, v, kr) { const z = this.norm(v), p = [dot(m.wx, z), dot(m.wy, z)]; if (kr) { const c = this.krr(z.slice(1), kr); p[0] += c[0]; p[1] += c[1]; } return p; }
   krr(z, k) { let a = 0, b = 0; for (let i = 0; i < k.Z.length; i++) { let d = 0; const Zi = k.Z[i]; for (let j = 0; j < z.length; j++) { const t = z[j] - Zi[j]; d += t * t; } const w = Math.exp(-this.g * d); a += w * k.al[i][0]; b += w * k.al[i][1]; } return [a, b]; }
@@ -211,13 +222,55 @@ class GazeModel {
 
 /* ---------- app state ---------- */
 const model = new GazeModel();
-const fx = new OneEuro(), fy = new OneEuro();
+const fx = new OneEuro(0.5, 0.003), fy = new OneEuro(0.5, 0.003); // lower = smoother/steadier, slower to respond (was 0.8 / 0.004)
 let landmarker, lastFeat = null, state = "idle", gaze = null, raw = null, fps = 0, showHeat = false, showLm = false;
 const log = [], heat = { cols: 64, rows: 36, a: new Float32Array(64 * 36) };
 const fix = { x: 0, y: 0, t0: 0, on: false, pts: [] };
 let target = null; // {x,y,r,label}
 
-const setState = s => { state = s; $("sState").textContent = s; $("bRecal").classList.toggle("hide", s !== "tracking"); $("bDrift").classList.toggle("hide", s !== "tracking"); $("bar").classList.toggle("dim", s !== "tracking" && s !== "idle"); };
+/* ---------- blink detector (used for calibration AND live tracking) ---------- */
+const BLINK_THRESH = 0.4;    // tracking: look-down-compensated blink score above this = blink
+const BLINK_THRESH_CAL = 0.3; // calibration: stricter, so no blink-edge frame ever becomes training data
+const BLINK_HOLD_MS = 250;   // keep treating it as a blink this long after the eye re-opens
+const OPEN_FRAC = 0.4;       // tracking: eyelid opening below this fraction of the calibrated opening = blink
+const REL_OPEN = 0.55;       // any time: eyelid opening suddenly below this fraction of its own recent level = blink
+const PRE_BLINK_MS = 150;    // calibration: also discard samples from this long BEFORE a blink was detected (lids already closing)
+class BlinkDetector {
+  constructor() { this.hist = []; this.until = 0; }
+  reset() { this.hist.length = 0; this.until = 0; }
+  update(f, now, absBase, thr) { // call once per camera frame; returns true while blinking / still in the hold window
+    if (!f) { this.until = Math.max(this.until, now + 300); return true; } // face lost: hold until it has been back a moment
+    let blink = f.eb > thr;
+    const h = this.hist;
+    if (!blink && h.length >= 10) { // sudden drop relative to this person's own recent eyelid opening (works before the model exists)
+      const sorted = h.map(r => r[1]).sort((a, b) => a - b), ref = sorted[Math.floor(sorted.length * 0.8)];
+      if (f.open < ref * REL_OPEN) blink = true;
+    }
+    if (!blink && absBase && f.open < absBase * OPEN_FRAC) blink = true;
+    if (blink) this.until = now + BLINK_HOLD_MS;
+    else { h.push([now, f.open]); while (h.length && now - h[0][0] > 1500) h.shift(); } // blink frames never pollute the baseline
+    return now < this.until;
+  }
+}
+const blinkDet = new BlinkDetector();
+let blinking = false, blinkFlash = -1e9;
+
+const setState = s => {
+  state = s; $("sState").textContent = s;
+  $("bRecal").classList.toggle("hide", s !== "tracking"); $("bDrift").classList.toggle("hide", s !== "tracking"); $("bMag").classList.toggle("hide", s !== "tracking");
+  $("bar").classList.toggle("dim", s !== "tracking" && s !== "idle");
+  // While embedded, dim the dashboard showing through behind every pre-tracking state (idle,
+  // loading, calibrating, training, validating) so the calibration dots are easier to focus on;
+  // clear it the moment tracking actually starts and the dashboard becomes the thing to look at.
+  if (new URLSearchParams(location.search).get("embed") === "1") {
+    document.body.classList.toggle("embed-dim", s !== "tracking");
+  }
+  notifyParentState(s);
+};
+// Bridge to a same-origin host page embedding this tracker in an <iframe> (see frontend/index.html).
+// No-ops when opened standalone (window.parent === window) or when the host doesn't define the hook.
+function notifyParentState(s) { try { if (window.parent !== window) window.parent.__onTrackerState?.(s); } catch {} }
+function notifyParentGaze(x, y, fixating) { try { if (window.parent !== window) window.parent.__onExternalGaze?.(x, y, fixating); } catch {} }
 
 /* ---------- camera + landmarker ---------- */
 async function init() {
@@ -236,43 +289,140 @@ function loop() {
   if (landmarker && vid.readyState >= 2 && vid.currentTime !== lastVT) {
     lastVT = vid.currentTime; const now = performance.now();
     const f = extract(landmarker.detectForVideo(vid, now));
-    lastFeat = f; $("sFace").textContent = f ? (f.blink > 0.5 ? "blink" : "yes") : "NO";
+    lastFeat = f; blinking = blinkDet.update(f, now, state === "tracking" ? model.openBase : 0, state === "tracking" ? BLINK_THRESH : BLINK_THRESH_CAL); $("sFace").textContent = f ? (f.blink > 0.5 ? "blink" : "yes") : "NO";
     if (f && model.ok && state === "tracking") onGaze(f, now);
     if (++fpsN >= 20) { fps = fpsN * 1000 / (now - fpsT); fpsN = 0; fpsT = now; $("sFps").textContent = fps.toFixed(0); }
   }
   draw(); requestAnimationFrame(loop);
 }
 
+/* ---------- gaze magnet: gentle pull toward nearby clickable elements ---------- */
+// Pull strength rises smoothly as the gaze gets closer to a button's edge (0 at radiusDeg away, maxPull when on it).
+// maxPull is a fraction of the remaining distance to the button's inner area, so it is only ever a partial nudge:
+// two neighbouring buttons pull in opposite directions and the cursor can still move freely between them.
+const MAG = { on: true, radiusDeg: 4, maxPull: 0.35, falloff: 1.5, maxSizeFrac: 0.6,
+  // Sticky centre: once the (pulled) cursor is within capture radius of a button's centre it locks there.
+  sticky: true,
+  captureFrac: 0.5, captureMinDeg: 0.8, captureMaxDeg: 2, // capture radius = half the button's short side, clamped to this range
+  releaseMult: 1.8,   // to let go, the gaze must get beyond capture radius x this (hysteresis, so it doesn't flicker at the edge)
+  releaseMs: 150,     // ...and stay out there this long
+  loose: 0.12,        // while stuck, the cursor still follows the gaze by this fraction so it feels alive, not frozen
+  easeMs: 80 };       // glide time into / out of the lock
+let stick = null;     // {cx, cy, rc, w, outSince} the button the cursor is currently stuck to
+const MAG_SEL = 'button, a[href], input:not([type=hidden]), select, textarea, summary, [role=button], [role=link], [role=tab], [onclick], [tabindex]:not([tabindex="-1"])';
+let magTargets = [], magScanT = -1e9, magOff = [0, 0], magLastT = 0;
+function magCollect(doc, ox, oy, out) {
+  const win = doc.defaultView, vw = win.innerWidth, vh = win.innerHeight;
+  doc.querySelectorAll(MAG_SEL).forEach(el => {
+    if (el.disabled) return;
+    const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return;
+    if (r.right < 0 || r.bottom < 0 || r.left > vw || r.top > vh) return;
+    if (r.width > vw * MAG.maxSizeFrac && r.height > vh * MAG.maxSizeFrac) return; // skip page-sized wrappers
+    const cs = win.getComputedStyle(el);
+    if (cs.visibility === "hidden" || cs.display === "none" || cs.pointerEvents === "none") return;
+    out.push({ x0: r.left - ox, y0: r.top - oy, x1: r.right - ox, y1: r.bottom - oy });
+  });
+}
+function magScan(now) {
+  if (now - magScanT < 200) return; magScanT = now;
+  const out = []; magCollect(document, 0, 0, out);
+  try { // embedded in a same-origin host dashboard: its buttons count too (coords converted to this iframe's space)
+    if (window.parent !== window && window.frameElement) { const fr = window.frameElement.getBoundingClientRect(); magCollect(window.parent.document, fr.left, fr.top, out); }
+  } catch {}
+  magTargets = out;
+}
+function magnet(gx, gy, now) {
+  const dt = Math.min(Math.max((now - magLastT) / 1000, 0.001), 0.1); magLastT = now;
+  let tx = 0, ty = 0;
+  if (MAG.on && state === "tracking") {
+    magScan(now);
+    const R = MAG.radiusDeg * pxPerDeg(); let sum = 0;
+    for (const t of magTargets) {
+      const d = Math.hypot(Math.max(t.x0 - gx, 0, gx - t.x1), Math.max(t.y0 - gy, 0, gy - t.y1));
+      if (d >= R) continue;
+      const s = MAG.maxPull * Math.pow(1 - d / R, MAG.falloff), inset = Math.min(t.x1 - t.x0, t.y1 - t.y0) / 4;
+      const px = Math.min(Math.max(gx, t.x0 + inset), t.x1 - inset), py = Math.min(Math.max(gy, t.y0 + inset), t.y1 - inset);
+      tx += s * (px - gx); ty += s * (py - gy); sum += s;
+    }
+    if (sum > MAG.maxPull) { const k = MAG.maxPull / sum; tx *= k; ty *= k; } // many buttons nearby: never exceed the cap
+  }
+  const a = 1 - Math.exp(-dt / 0.08); // ease the offset so the cursor glides rather than snaps
+  magOff[0] += a * (tx - magOff[0]); magOff[1] += a * (ty - magOff[1]);
+  const qx = gx + magOff[0], qy = gy + magOff[1];
+  if (!(MAG.on && MAG.sticky && state === "tracking")) { stick = null; return [qx, qy]; }
+
+  // ---- sticky centre ----
+  const ppd = pxPerDeg(); let best = null;
+  for (const t of magTargets) { // nearest button centre whose capture radius contains the cursor
+    const cx = (t.x0 + t.x1) / 2, cy = (t.y0 + t.y1) / 2, d = Math.hypot(qx - cx, qy - cy);
+    const rc = Math.min(Math.max(MAG.captureFrac * Math.min(t.x1 - t.x0, t.y1 - t.y0), MAG.captureMinDeg * ppd), MAG.captureMaxDeg * ppd);
+    if (d < rc && (!best || d < best.d)) best = { cx, cy, rc, d };
+  }
+  if (!stick) { if (best) stick = { cx: best.cx, cy: best.cy, rc: best.rc, w: 0, outSince: 0 }; }
+  else {
+    // follow the button if the page scrolled/moved it; if it's gone, let go
+    let m = null; for (const t of magTargets) { const cx = (t.x0 + t.x1) / 2, cy = (t.y0 + t.y1) / 2, d = Math.hypot(cx - stick.cx, cy - stick.cy); if (d < 40 && (!m || d < m.d)) m = { cx, cy, d }; }
+    if (m) { stick.cx = m.cx; stick.cy = m.cy; } else stick.outSince = stick.outSince || now - MAG.releaseMs - 1;
+    // hand-off: cursor is now inside a different button's capture radius AND closer to its centre -> switch straight over
+    const dStuck = Math.hypot(qx - stick.cx, qy - stick.cy);
+    if (best && Math.hypot(best.cx - stick.cx, best.cy - stick.cy) > 1 && best.d < dStuck) { stick.cx = best.cx; stick.cy = best.cy; stick.rc = best.rc; stick.outSince = 0; }
+    // release: gaze has stayed well outside the capture radius
+    if (Math.hypot(qx - stick.cx, qy - stick.cy) > stick.rc * MAG.releaseMult) stick.outSince = stick.outSince || now; else if (m) stick.outSince = 0;
+    const farOut = Math.hypot(qx - stick.cx, qy - stick.cy) > stick.rc * MAG.releaseMult * 2; // clearly looked away: let go at once
+    const releasing = stick.outSince && (farOut || now - stick.outSince > MAG.releaseMs);
+    const k = 1 - Math.exp(-dt * 1000 / MAG.easeMs); stick.w += k * ((releasing ? 0 : 1) - stick.w);
+    if (releasing && stick.w < 0.02) stick = null;
+  }
+  if (!stick) return [qx, qy];
+  const sx = stick.cx + MAG.loose * (qx - stick.cx), sy = stick.cy + MAG.loose * (qy - stick.cy);
+  return [qx + stick.w * (sx - qx), qy + stick.w * (sy - qy)];
+}
+
 /* ---------- live gaze, filtering, fixation detection (I-VT) ---------- */
+const JUMP_DEG = 5, JUMP_FRAMES = 3; // a sudden jump bigger than this must persist for N frames before it's believed
+let pend = { n: 0, x: 0, y: 0 };
 function onGaze(f, now) {
   const hd = f.head, hm = model.hmu; fix.off = Math.abs(hd[0] - hm[0]) > 0.2 || Math.abs(hd[1] - hm[1]) > 0.2 || Math.abs(hd[6] / hm[6] - 1) > 0.18;
-  if (f.blink > 0.45) return; // hold last estimate through blinks
+  if (blinking) { pend.n = 0; $("sFace").textContent = "hold"; return; } // hold last estimate through blinks (see BlinkDetector)
   let [x, y] = model.predict(f);
   x = Math.min(Math.max(x, -50), W + 50); y = Math.min(Math.max(y, -50), H + 50);
+  // Jump gate: a one-frame spike (landmark glitch, half-blink) is ignored; a real saccade is accepted once it has persisted.
+  if (fx.x !== null) {
+    const jump = JUMP_DEG * pxPerDeg();
+    if (Math.hypot(x - fx.x, y - fy.x) > jump) {
+      pend.n = pend.n && Math.hypot(x - pend.x, y - pend.y) < jump / 2 ? pend.n + 1 : 1; pend.x = x; pend.y = y;
+      if (pend.n < JUMP_FRAMES) return;
+    }
+  }
+  pend.n = 0;
   raw = [x, y]; const t = now / 1000;
-  const gx = fx.f(x, t), gy = fy.f(y, t); gaze = [gx, gy];
-  $("sGaze").textContent = `${gx.toFixed(0)}, ${gy.toFixed(0)}`;
+  const gx = fx.f(x, t), gy = fy.f(y, t);
+  const [mx, my] = magnet(gx, gy, now); gaze = [mx, my]; // cursor shown/sent to host = magnetised; fixation below uses the pure filtered gaze
+  $("sGaze").textContent = `${mx.toFixed(0)}, ${my.toFixed(0)}`;
+  notifyParentGaze(mx, my, fix.on);
   // velocity-threshold identification: 40 deg/s counts as saccade
   const p = fix.pts; p.push([gx, gy, now]); while (p.length > 1 && now - p[0][2] > 120) p.shift();
   const dt = (now - p[0][2]) / 1000, v = dt > 0.02 ? Math.hypot(gx - p[0][0], gy - p[0][1]) / pxPerDeg() / dt : 0;
   if (v > 40) { fix.on = false; $("sFix").textContent = "saccade"; }
   else { if (!fix.on) { fix.on = true; fix.t0 = now; } $("sFix").textContent = `${(now - fix.t0).toFixed(0)} ms`; }
-  const cx = Math.floor(gx / W * heat.cols), cy = Math.floor(gy / H * heat.rows);
+  const cx = Math.floor(mx / W * heat.cols), cy = Math.floor(my / H * heat.rows);
   if (cx >= 0 && cy >= 0 && cx < heat.cols && cy < heat.rows) heat.a[cy * heat.cols + cx] += 1;
-  log.push([Math.round(now), gx.toFixed(1), gy.toFixed(1), x.toFixed(1), y.toFixed(1), fix.on ? 1 : 0]); if (log.length > 2e5) log.shift();
+  log.push([Math.round(now), mx.toFixed(1), my.toFixed(1), x.toFixed(1), y.toFixed(1), fix.on ? 1 : 0]); if (log.length > 2e5) log.shift();
 }
 
 /* ---------- calibration + validation ---------- */
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
 async function dwellOn(px, py, label, onSample) {
-  const t0 = performance.now(); let n = 0;
+  const t0 = performance.now(), buf = [];
   for (;;) {
-    const e = performance.now() - t0, k = Math.max(0, 1 - e / 1900);
+    const now = performance.now(), e = now - t0, k = Math.max(0, 1 - e / 1900);
     target = { x: px, y: py, r: 8 + 18 * k, label };
-    if (e > 800 && lastFeat && lastFeat.blink < 0.35) { onSample(lastFeat, e); n++; }
+    if (blinking) { blinkFlash = now; const cut = now - PRE_BLINK_MS; while (buf.length && buf[buf.length - 1][1] > cut) buf.pop(); } // drop the closing-lid frames too
+    else if (e > 800 && lastFeat) buf.push([lastFeat, now, e]);
     if (e > 1900) break; await sleep(16);
   }
-  target = null; return n;
+  buf.forEach(([f, , e]) => onSample(f, e));
+  target = null; return buf.length;
 }
 const CAL = [[.06, .06], [.5, .06], [.94, .06], [.06, .5], [.5, .5], [.94, .5], [.06, .94], [.5, .94], [.94, .94], [.28, .28], [.72, .28], [.28, .72], [.72, .72]];
 const VAL = [[.17, .5], [.83, .5], [.5, .17], [.5, .83], [.39, .61]];
@@ -282,13 +432,14 @@ async function pursuit() { // smooth-pursuit pass: dense coverage incl. edges; l
   for (;;) {
     const e = performance.now() - t0; if (e > T) break;
     const [x, y] = pos(e / T); target = { x, y, r: 14, label: "" };
-    if (lastFeat && lastFeat !== last && lastFeat.blink < 0.35 && e > 600) { last = lastFeat; const [lx, ly] = pos(Math.max(0, e - 110) / T); tmp.push([lastFeat, lx, ly, Math.floor(e / T * 8)]); }
+    if (blinking) { blinkFlash = performance.now(); while (tmp.length && tmp[tmp.length - 1][4] > e - PRE_BLINK_MS) tmp.pop(); }
+    else if (lastFeat && lastFeat !== last && e > 600) { last = lastFeat; const [lx, ly] = pos(Math.max(0, e - 110) / T); tmp.push([lastFeat, lx, ly, Math.floor(e / T * 8), e]); }
     await sleep(8);
   }
   target = null; tmp.forEach(([f, x, y, g]) => model.add(f, x, y, 0.5, 100 + g));
 }
 async function calibrate() {
-  setState("calibrating"); $("center").classList.add("hide"); model.S.length = 0; model.ok = false; gaze = null; fx.reset(); fy.reset();
+  setState("calibrating"); $("center").classList.add("hide"); blinkDet.reset(); model.S.length = 0; model.ok = false; gaze = null; fx.reset(); fy.reset();
   await sleep(500);
   const order = shuffle(CAL.map((p, i) => [p, i]));
   for (const [[fxr, fyr], gi] of order) {
@@ -320,7 +471,9 @@ async function driftFix() { // one-point re-centre: removes slow offset drift wi
 }
 /* click-to-refine: the clicked point is almost certainly being looked at (WebGazer idea) */
 addEventListener("click", e => {
-  if (state !== "tracking" || !lastFeat || lastFeat.blink > 0.35 || e.target.closest("#panel,#msg,#bar")) return;
+  if (state !== "tracking" || !lastFeat || blinking || e.target.closest("#panel,#msg,#bar")) return;
+  // only learn from clicks when the cursor was already roughly there: a click made while looking elsewhere would corrupt the model
+  if (!gaze || Math.hypot(gaze[0] - e.clientX, gaze[1] - e.clientY) > 6 * pxPerDeg()) return;
   for (let i = 0; i < 3; i++) model.add(lastFeat, e.clientX, e.clientY, 1.5, -1);
   model.train(true);
 });
@@ -345,6 +498,7 @@ function draw() {
     ctx.beginPath(); ctx.arc(target.x, target.y, target.r, 0, 7); ctx.fillStyle = "#ff5252"; ctx.fill();
     ctx.beginPath(); ctx.arc(target.x, target.y, 3, 0, 7); ctx.fillStyle = "#fff"; ctx.fill();
   }
+  if (target && performance.now() - blinkFlash < 700) { ctx.fillStyle = "#ffd54f"; ctx.font = "600 16px system-ui"; ctx.textAlign = "center"; ctx.fillText("Blink detected: that moment is ignored. Keep looking at the dot.", W / 2, 60); }
   if (state === "tracking" && fix.off) { ctx.fillStyle = "#ff8a80"; ctx.font = "600 16px system-ui"; ctx.textAlign = "center"; ctx.fillText("Head moved from calibration pose: move back, or press D to drift-correct", W / 2, 30); }
   if (gaze && state === "tracking" && pointerOn) {
     const [x, y] = gaze, r = 14 + (fix.on ? Math.min((performance.now() - fix.t0) / 40, 26) : 0);
@@ -357,6 +511,9 @@ let pointerOn = false;
 const setPointer = v => { pointerOn = v; $("bPtr").textContent = "Eye pointer: " + (v ? "on" : "off"); };
 $("bRecal").onclick = () => { if (landmarker) calibrate(); };
 $("bDrift").onclick = () => { if (model.ok && state === "tracking") driftFix(); };
+const setMagnet = v => { MAG.on = v; $("bMag").textContent = "Magnet: " + (v ? "on" : "off"); };
+$("bMag").onclick = () => setMagnet(!MAG.on);
+addEventListener("keydown", e => { if (e.key.toLowerCase() === "m" && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) setMagnet(!MAG.on); });
 $("bPtr").onclick = () => { if (pointerOn) return setPointer(false); setPointer(true); if (!model.ok && state === "idle") enableTracking(); }; // first time: start + calibrate; later toggles never recalibrate
 
 /* ---------- start ---------- */
@@ -368,6 +525,53 @@ async function enableTracking() {
   if (!model.ok) setPointer(false);
 }
 $("go").onclick = () => { setPointer(true); enableTracking(); };
+
+// Exposed for the host dashboard's "Recalibrate" button (frontend/index.html), called via
+// iframe.contentWindow.recalibrateGaze() -- works even while the iframe itself is pointer-events:none.
+window.recalibrateGaze = () => { if (landmarker) calibrate(); else enableTracking(); };
+
+// When embedded (?embed=1), drop the opaque page background so the host dashboard shows through,
+// and restyle the dev-tool-styled bar/panel/message box to match the Capital One dashboard instead
+// of floating a dark hacker-tool overlay on top of it.
+if (new URLSearchParams(location.search).get("embed") === "1") {
+  // color-scheme:dark (set on :root above) makes Chrome paint a dark UA canvas color behind any
+  // transparent area instead of truly showing through to the parent page -- clear it too, or the
+  // "transparent" backgrounds below still render solid black.
+  document.documentElement.style.colorScheme = "normal";
+  document.documentElement.style.background = "transparent";
+  // body's background is owned by the .embed-dim class from here on (toggled in setState): dimmed
+  // through every pre-tracking state, fully clear once tracking starts. Set the initial state to
+  // match -- page loads as "idle", before setState() has ever run once.
+  document.body.classList.add("embed-dim");
+
+  const embedStyle = document.createElement("style");
+  embedStyle.textContent = `
+    /* Move the control bar off the dashboard's logo (top-left) and give it the dashboard's own
+       light, pill-button look instead of the standalone tool's dark glass panel. */
+    #bar { top: auto !important; bottom: 14px !important; left: 14px !important; gap: 10px; }
+    #bar button {
+      background: #ffffff; color: #004879; border: 1px solid #cbd5e1;
+      border-radius: 9999px; padding: 8px 16px; font-size: 12px; font-weight: 700;
+      box-shadow: 0 6px 16px -6px rgba(0, 30, 60, 0.25);
+    }
+    #bar button:hover { background: #f1f5f9; }
+    #panel {
+      top: auto !important; bottom: 64px !important; left: 14px !important;
+      background: rgba(255,255,255,0.96); border-color: #cbd5e1; color: #0f172a;
+      backdrop-filter: blur(10px);
+    }
+    #panel h1 { color: #004879; }
+    #panel .row { color: #334155; }
+    #panel .row b { color: #0f172a; }
+    #msg { background: rgba(255,255,255,0.97); border-color: #cbd5e1; color: #0f172a; }
+    #msg h2 { color: #004879; }
+    #msg p { color: #334155; }
+    #msg button { background: #004879; color: #ffffff; }
+    #msg button:hover { background: #085a96; }
+    #err { color: #b91c1c !important; }
+  `;
+  document.head.appendChild(embedStyle);
+}
 </script>
 </body>
 </html>
