@@ -27,6 +27,7 @@ const frontendFiles = new Map([
   ['/actions.js', ['actions.js', 'text/javascript']],
   ['/linking.js', ['linking.js', 'text/javascript']],
   ['/eyeTracking/eyetracker_v4.html', ['eyeTracking/eyetracker_v4.html', 'text/html']],
+  ['/eyeTracking/eyetracker_v51.html', ['eyeTracking/eyetracker_v51.html', 'text/html']],
 ]);
 const frontendAssets = new Map();
 for (const [path, [file, type]] of frontendFiles) {

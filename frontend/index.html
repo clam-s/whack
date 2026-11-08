@@ -713,7 +713,7 @@
     hciLensToggle.addEventListener('click', () => toggleHciLens());
     closeHudBtn?.addEventListener('click', () => toggleHciLens(false));
 
-    // --- Live Webcam Eye Tracking Bridge (frontend/eyeTracking/eyetracker_v4.html) ---
+    // --- Live Webcam Eye Tracking Bridge (frontend/eyeTracking/eyetracker_v51.html) ---
     // Same-origin iframe, so the tracker calls window.parent.__onExternalGaze / __onTrackerState
     // directly instead of postMessage. See the iframe element above for the click-through rationale.
     let liveEyeTrackingActive = false;
@@ -800,7 +800,7 @@
       if (on) {
         liveEyeTrackingBadge.textContent = 'CALIBRATING';
         liveEyeTrackingBadge.className = 'bg-amber-400 text-slate-950 font-bold font-mono text-[10px] px-1.5 py-0.5 rounded-xs shadow-xs';
-        liveEyeTrackingFrame.src = 'eyeTracking/eyetracker_v4.html?embed=1';
+        liveEyeTrackingFrame.src = 'eyeTracking/eyetracker_v51.html?embed=1';
         liveEyeTrackingFrame.classList.remove('hidden');
         liveEyeTrackingFrame.style.pointerEvents = 'auto'; // interactive until calibration finishes
         recalibrateEyeTrackingBtn.classList.remove('hidden');
@@ -867,6 +867,12 @@
     // iframe covers the full viewport and shares this document's dimensions.
     window.__onExternalGaze = function (x, y, fixating) {
       if (!liveEyeTrackingActive) return;
+      if (x === null || y === null) {
+        pendingHoverTarget = null;
+        pendingExpandTarget = null;
+        clearGazeExpansion();
+        return;
+      }
       gazeCursorDot.classList.remove('hidden');
       gazeCursorDot.style.left = `${x}px`;
       gazeCursorDot.style.top = `${y}px`;
