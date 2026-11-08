@@ -42,7 +42,7 @@
     const messages = {
       requested: 'Requesting spoken acknowledgement.',
       playing: 'Spoken acknowledgement is playing.',
-      'voice-fallback': 'The selected Fish voice reference was unavailable; Fish spoke using the Sarah backup voice.',
+      'voice-fallback': 'The selected Fish voice was unavailable. Fish used the backup voice.',
     };
     if (messages[detail?.status]) logVoiceActivity(messages[detail.status]);
     if (detail?.status === 'fallback') {
