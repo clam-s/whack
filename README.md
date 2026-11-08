@@ -46,6 +46,8 @@ The agent defaults to Chloe with the `drama-3` model and the `[warm]` delivery t
 
 Set `DEBUG_STORE_VOICE_CLIPS=true` in `.env` and restart the backend to save uploaded WebM or Ogg clips in `backend/data/voice-clips/`. The terminal prints each saved filename. Clips are saved before transcription, so they are available even when the transcription request fails. The directory is ignored by Git, and clips remain on disk until deleted. Browser-native speech recognition does not upload a clip to this backend.
 
+Start the backend with `node --env-file=.env backend/server.mjs -d` to print push-to-talk transcripts in the server terminal.
+
 ## Webcam gaze tracking
 
 Open the dashboard on localhost or HTTPS, select **Eye Tracking**, then select **Start camera and calibrate** and allow camera access. Look at each target and follow the moving dot. After calibration, holding your gaze on a dashboard control selects it. Use **Recalibrate** to run calibration again or **Retry** if the camera or tracker stops.

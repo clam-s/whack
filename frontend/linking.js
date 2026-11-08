@@ -153,6 +153,7 @@
   const destinations = new Map([
     ['RESPONSE_OPEN_CHECKING', 'checking'], ['RESPONSE_OPEN_SAVINGS', 'savings'],
     ['RESPONSE_OPEN_CREDIT_CARDS', 'credit-cards'], ['RESPONSE_OPEN_LOANS', 'loans'],
+    ['RESPONSE_OPEN_CARD_SECURITY', 'lock-card'],
     ['RESPONSE_OPEN_TRANSFER', 'transfer'], ['RESPONSE_OPEN_SEND_MONEY', 'send-money'],
     ['RESPONSE_OPEN_REWARDS', 'rewards'], ['RESPONCE_SHOW_BALANCE', 'checking'],
     ['REPONCE_SHOW_TRANSACTIONS', 'recent-all'], ['RESPONSE_SHOW_NAME', 'account-details'],
@@ -242,7 +243,7 @@
     return true;
   }
 
-  function openDestination(code, { merchant, draft } = {}) {
+  function openDestination(code, { merchant, draft, message } = {}) {
     if (code === 'RESPONSE_FILTER_MERCHANTS') {
       return typeof merchant === 'string' && openMerchantFilter(merchant);
     }
@@ -250,7 +251,9 @@
     if (!page) return false;
     if (draft && (page === 'transfer' || page === 'send-money') && openPaymentDraft(page, draft)) return true;
     navigateTo(page);
-    commandStatus.textContent = `Opened ${viewLabels.get(page)}.`;
+    commandStatus.textContent = page === 'lock-card'
+      ? message || 'Opened Card Security. Review your demo credit card and choose whether to lock it.'
+      : `Opened ${viewLabels.get(page)}.`;
     return true;
   }
 

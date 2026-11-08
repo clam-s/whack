@@ -8,6 +8,7 @@
 	"open the checking account tab": "RESPONSE_OPEN_CHECKING",
 	"open the savings account tab": "RESPONSE_OPEN_SAVINGS",
 	"open the credit cards tab": "RESPONSE_OPEN_CREDIT_CARDS",
+	"open card security for a lost, stolen, or misplaced credit card": "RESPONSE_OPEN_CARD_SECURITY",
 	"open the transfer form": "RESPONSE_OPEN_TRANSFER",
 	"open the send money form": "RESPONSE_OPEN_SEND_MONEY",
 	"open the loans tab": "RESPONSE_OPEN_LOANS",

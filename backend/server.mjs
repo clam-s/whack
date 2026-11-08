@@ -17,6 +17,7 @@ const fishTtsDirection = process.env.FISH_TTS_DIRECTION?.trim() || '[warm]';
 const fishTtsSpeed = boundedNumber(process.env.FISH_TTS_SPEED, 1, 0.5, 2);
 const fishTtsVolume = boundedNumber(process.env.FISH_TTS_VOLUME, 0, -20, 20);
 const storeVoiceClips = process.env.DEBUG_STORE_VOICE_CLIPS === 'true';
+const logVoiceTranscripts = process.argv.slice(2).includes('-d');
 const voiceClipDirectory = new URL('./data/voice-clips/', import.meta.url);
 const audioFormats = new Map([['audio/webm', 'webm'], ['audio/ogg', 'ogg']]);
 const executionEnabled = process.env.ENABLE_CODE_EXECUTION === 'true';
@@ -78,6 +79,9 @@ async function transcribeWithFish(audio, format) {
   });
   if (!response.ok) {
     await response.body?.cancel();
+    if (response.status === 401) {
+      throw new RequestError(502, 'Fish Audio rejected FISH_API_KEY. Update it in .env and restart the backend.');
+    }
     throw new Error(`Fish Audio transcription returned HTTP ${response.status}`);
   }
   const result = await response.json();
@@ -246,6 +250,7 @@ const server = createServer(async (req, res) => {
           ? await transcribeWithFish(audio, format)
           : await transcribeAudio(audio, format, { apiKey: OPENROUTER_API_KEY, model: transcriptionModel });
         console.info(`[${path}] ${Math.round(performance.now() - startedAt)}ms via ${FISH_API_KEY ? 'Fish Audio' : 'OpenRouter'}`);
+        if (logVoiceTranscripts) console.log('[voice transcript]', JSON.stringify(text));
         return send(res, 200, { text });
       } catch (error) {
         if (error instanceof RequestError) throw error;
