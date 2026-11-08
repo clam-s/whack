@@ -35,27 +35,17 @@
   </script>
   <style>
     [hidden] { display: none !important; }
-    .magnification :is(.nav-item, #voiceMicrophone, #sendVoiceCommand, #linkedAccountBalance, [data-magnify-figure]):focus-visible {
+    .magnification :is(.nav-item, #voiceMicrophone, #sendVoiceCommand, [data-magnify-figure]):focus-visible {
       position: relative;
       z-index: 1;
       scale: 1.12;
     }
     @media (hover: hover) {
-      .magnification :is(.nav-item, #voiceMicrophone, #sendVoiceCommand, #linkedAccountBalance, [data-magnify-figure]):hover:not(:disabled) {
+      .magnification :is(.nav-item, #voiceMicrophone, #sendVoiceCommand, [data-magnify-figure]):hover:not(:disabled) {
         position: relative;
         z-index: 1;
         scale: 1.12;
       }
-    }
-    .high-contrast :is(#linkedAccountDialog, #linkedAccountPanel) {
-      background: #000 !important;
-      color: #fff !important;
-      border-color: #fff !important;
-    }
-    .high-contrast :is(#linkedAccountDialog, #linkedAccountPanel) :is(p, label, h2, input) {
-      background: #000 !important;
-      color: #fff !important;
-      border-color: #fff !important;
     }
     .high-contrast :focus-visible { outline: 3px solid #ffea00 !important; outline-offset: 3px; }
 
@@ -276,7 +266,6 @@
     hidden
     aria-hidden="true"
   >
-    <button id="backendAccountBtn" type="button">Account sign-in</button>
     <button id="readAloudToggle" type="button" aria-pressed="false">Read aloud</button>
     <button id="readTabBtn" type="button" disabled>Read this tab</button>
     <button id="magnificationToggle" type="button" aria-pressed="false">Magnify on hover</button>
@@ -396,13 +385,6 @@
       <!-- ================= MAIN CONTENT LANDMARK ================= -->
       <main id="mainContent" class="lg:col-span-9 xl:col-span-10 min-h-[550px] lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain" role="main" tabindex="-1">
         
-        <section id="linkedAccountPanel" hidden class="card bg-white rounded-xl border border-slate-200 p-5 mb-4" aria-labelledby="linkedAccountHeading">
-          <h2 id="linkedAccountHeading" class="font-bold">Linked account</h2>
-          <p id="linkedAccountName"></p>
-          <p id="linkedAccountBalance" tabindex="0"></p>
-          <ul id="linkedAccountTransactions" class="mt-2 space-y-1"></ul>
-        </section>
-        <p class="text-xs text-white/75 mb-2">Sample account activity · changes stay in this dashboard and do not move funds. Independent prototype, not affiliated with Capital One.</p>
         <!-- DYNAMIC VIEW INJECTION CONTAINER -->
         <div id="viewContainer" class="space-y-5">
           <!-- Views rendered by JavaScript based on state.currentPage -->
@@ -412,19 +394,6 @@
 
     </div>
   </div>
-
-  <dialog id="linkedAccountDialog" aria-labelledby="linkedAccountDialogTitle" class="m-auto w-[min(28rem,90vw)] rounded-xl border p-5 backdrop:bg-black/60">
-    <h2 id="linkedAccountDialogTitle" class="font-bold">Account sign-in</h2>
-    <form id="linkedAccountForm" class="space-y-3">
-      <p>Sample sign-in: <code>demo-user</code> / <code>whack-demo-only</code>.</p>
-      <label class="block">User ID <input name="userId" autocomplete="username" required class="block w-full rounded border p-2"></label>
-      <label class="block">Password <input name="password" type="password" autocomplete="current-password" required class="block w-full rounded border p-2"></label>
-      <button class="rounded bg-c1-navy px-3 min-h-[44px] text-white">Sign in</button>
-    </form>
-    <button id="linkedAccountSignOut" type="button" hidden class="rounded border px-3 min-h-[44px]">Sign out</button>
-    <p id="linkedAccountStatus" role="status"></p>
-    <form method="dialog"><button class="min-h-[44px] underline">Close</button></form>
-  </dialog>
 
   <!-- ================= MONEY MOVEMENT CONFIRMATION MODAL ================= -->
   <div

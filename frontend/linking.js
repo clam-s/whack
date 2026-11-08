@@ -8,16 +8,8 @@
   const microphone = byId('voiceMicrophone');
   const voiceActivityLog = byId('voiceActivityLog');
   const voiceAssistantButton = byId('voiceAssistantBtn');
-  const accountDialog = byId('linkedAccountDialog');
-  const accountForm = byId('linkedAccountForm');
-  const accountStatus = byId('linkedAccountStatus');
-  const accountPanel = byId('linkedAccountPanel');
-  const accountButton = byId('backendAccountBtn');
-  const signOut = byId('linkedAccountSignOut');
   const readToggle = byId('readAloudToggle');
   const readButton = byId('readTabBtn');
-  let account;
-  let accountRequest;
   let readAloud = false;
   let voiceSession;
   let voicePaymentPending = false;
@@ -93,83 +85,6 @@
     return data;
   }
 
-  function formatAmount(minor) {
-    const format = new Intl.NumberFormat(undefined, { style: 'currency', currency: account.currency });
-    return format.format(minor / 10 ** format.resolvedOptions().maximumFractionDigits);
-  }
-
-  function renderAccount(page = getState().currentPage) {
-    accountPanel.hidden = !account || !['checking', 'account-details', 'recent-all'].includes(page);
-    accountForm.hidden = Boolean(account);
-    signOut.hidden = !account;
-    accountButton.textContent = account ? 'Linked account' : 'Account sign-in';
-    byId('linkedAccountName').textContent = account ? `${account.name} · ${account.userId}` : '';
-    byId('linkedAccountBalance').textContent = account ? `Available balance: ${formatAmount(account.balanceMinor)}` : '';
-    const rows = account?.transactions.map((item) => {
-      const row = document.createElement('li');
-      row.textContent = `${item.date} · ${item.description} · ${formatAmount(item.amountMinor)}`;
-      return row;
-    }) ?? [];
-    byId('linkedAccountTransactions').replaceChildren(...rows);
-  }
-
-  function showSignIn() {
-    if (!accountRequest) accountStatus.textContent = '';
-    if (!accountDialog.open) accountDialog.showModal();
-    if (!account) accountForm.elements.userId.focus();
-  }
-
-  accountButton.addEventListener('click', showSignIn);
-  accountDialog.addEventListener('close', () => {
-    accountRequest?.abort();
-    accountForm.elements.password.value = '';
-  });
-  async function signIn(credentials, automatic = false) {
-    if (accountRequest) return;
-    const request = new AbortController();
-    accountRequest = request;
-    const submit = accountForm.querySelector('button');
-    submit.disabled = true;
-    accountStatus.textContent = 'Signing in…';
-    try {
-      account = await post('/api/account', credentials, request.signal);
-      renderAccount();
-      accountStatus.textContent = 'Account connected. Open Checking or Recent Transactions to view your activity.';
-      if (accountDialog.open) signOut.focus();
-      if (!automatic && readAloud) window.speakText('Signed in. Your account is ready.');
-    } catch (error) {
-      if (!request.signal.aborted) {
-        accountStatus.textContent = error.message;
-        if (automatic && !accountDialog.open) {
-          commandStatus.textContent = 'Account sign-in failed. Please try again.';
-        }
-      }
-    } finally {
-      accountRequest = undefined;
-      submit.disabled = false;
-    }
-  }
-
-  accountForm.addEventListener('submit', (event) => {
-    event.preventDefault();
-    if (accountRequest) return;
-    const credentials = Object.fromEntries(new FormData(accountForm));
-    accountForm.elements.password.value = '';
-    void signIn(credentials);
-  });
-  signOut.addEventListener('click', () => {
-    account = undefined;
-    renderAccount();
-    accountStatus.textContent = 'Signed out.';
-    if (readAloud) window.speakText('Signed out.');
-    accountForm.elements.userId.focus();
-  });
-
-  if (location.protocol !== 'file:') {
-    // These public credentials belong to the sample SQLite account.
-    void signIn({ userId: 'demo-user', password: 'whack-demo-only' }, true);
-  }
-
   const viewLabels = new Map([
     ['checking', 'Checking'], ['savings', 'Savings'], ['credit-cards', 'Credit Cards'],
     ['loans', 'Loans'], ['rewards', 'Rewards and Deals'],
@@ -191,9 +106,7 @@
       loans: () => ` Sample remaining balance: ${window.appStore.formatCurrency(accounts.loans.balance)}.`,
       rewards: () => ` Sample rewards: ${rewards.miles.toLocaleString()} miles.`,
     };
-    const summary = account && ['checking', 'recent-all', 'account-details'].includes(page)
-      ? ` Linked balance: ${formatAmount(account.balanceMinor)}. ${account.transactions.length} transactions.` : '';
-    window.speakText(title + '.' + (summary || sampleSummaries[page]?.() || ''));
+    window.speakText(title + '.' + (sampleSummaries[page]?.() || ''));
   }
 
   if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
@@ -211,7 +124,6 @@
 
   let previousPage = getState().currentPage;
   subscribe((state) => {
-    renderAccount(state.currentPage);
     if (readAloud && previousPage !== state.currentPage) readCurrentView();
     previousPage = state.currentPage;
     if (voicePaymentPending && lastPendingConfirmation && !state.pendingConfirmation) {
@@ -255,10 +167,6 @@
       tabs[(index + direction + tabs.length) % tabs.length].focus();
     });
   });
-  const accountActions = new Set([
-    'RESPONCE_SHOW_BALANCE', 'REPONCE_SHOW_TRANSACTIONS', 'RESPONSE_SHOW_NAME',
-    'RESPONSE_SHOW_USER_ID', 'RESPONSE_SHOW_ACCOUNT_SUMMARY',
-  ]);
   function openMerchantFilter(merchant) {
     navigateTo('merchants', { merchant });
     commandStatus.textContent = byId('merchantResultCount').textContent;
@@ -343,7 +251,6 @@
     if (draft && (page === 'transfer' || page === 'send-money') && openPaymentDraft(page, draft)) return true;
     navigateTo(page);
     commandStatus.textContent = `Opened ${viewLabels.get(page)}.`;
-    if (accountActions.has(code) && !account) showSignIn();
     return true;
   }
 
@@ -380,8 +287,7 @@
     ['rewards', 'RESPONSE_OPEN_REWARDS'], ['rewards and deals', 'RESPONSE_OPEN_REWARDS'],
   ]);
   function availableButtons() {
-    const scope = accountDialog.open ? accountDialog :
-      getState().pendingConfirmation ? byId('confirmationModal') : document;
+    const scope = getState().pendingConfirmation ? byId('confirmationModal') : document;
     return [...scope.querySelectorAll('button, #brandLogoLink')].filter((button) =>
       !button.matches(':disabled, #voiceMicrophone, #sendVoiceCommand, #confirmActionBtn, [data-voice-ignore]') &&
       !button.closest('[hidden], [inert], [aria-hidden="true"], [aria-disabled="true"]') &&
@@ -604,7 +510,6 @@
   });
 
   function applyTranscript(text) {
-    if (accountDialog.open) return;
     if (!text) {
       commandStatus.textContent = 'No speech was recognized. Try again or type a command.';
       showAssistantNotice(commandStatus.textContent, 'error');
@@ -629,7 +534,7 @@
       window.setVoiceState('error');
       return;
     }
-    if (voiceSession || sendButton.disabled || accountDialog.open) return;
+    if (voiceSession || sendButton.disabled) return;
     const session = { pushToTalk: true, request: new AbortController(), released: false };
     voiceSession = session;
     sendButton.disabled = true;
