@@ -642,10 +642,15 @@ $("go").onclick = () => { setPointer(true); enableTracking(); };
 // Exposed for the host dashboard's "Recalibrate" button (frontend/index.html), called via
 // iframe.contentWindow.recalibrateGaze() -- works even while the iframe itself is pointer-events:none.
 window.recalibrateGaze = enableTracking;
+// One-point drift correction exposed to the dashboard D shortcut.
+window.driftFixGaze = () => {
+  if (model.ok && state === "tracking") driftFix();
+};
 addEventListener("message", event => {
   if (event.source !== window.parent || event.data?.source !== "whack-dashboard" ||
       event.data.type !== "command") return;
   if (event.data.method === "recalibrateGaze") enableTracking();
+  if (event.data.method === "driftFixGaze") window.driftFixGaze();
   if (event.data.method === "refineGazeFromSelection") {
     const rect = event.data.args?.[0];
     if (rect && [rect.left, rect.top, rect.right, rect.bottom].every(Number.isFinite) &&
