@@ -22,8 +22,6 @@ Common dashboard commands run in the browser. OpenRouter interprets more loosely
 
 Use the localhost URL rather than opening `frontend/index.html` directly. Chrome treats `file://` microphone permissions as file-specific and may ask repeatedly. On localhost, allow microphone access once for the site; Chrome can remember that choice for later visits. Browsers always require an initial permission grant and the app cannot dismiss or bypass that browser prompt.
 
-The dashboard automatically signs in to the demo account and shows the SQLite balance and transactions separately from the example data. Use **Demo account** to sign out. Reloading signs in to the demo again.
-
 ## Voice and typed commands
 
 Open **Voice Assistant** and either type a command or use the microphone. Commands such as “show balance,” “open savings,” and “click Contrast” run locally. Other phrasing goes to OpenRouter when configured. For on-screen controls, use the button label or describe the action. Where buttons share a label, include the section or item name.
@@ -73,7 +71,7 @@ A script that exits with an error still returns an execution result with `status
 
 The repository includes a prepared SQLite file at `backend/data/accounts.sqlite`. The backend opens it read-only on startup. Set `ACCOUNT_DB_PATH` to use another prepared file with the same schema. The demo password hash uses scrypt with the fixed salt `whack-local-demo-v1`.
 
-The frontend can send a JSON `POST` to `/api/account` with the user ID and password entered in its sign-in form. For local testing, use `demo-user` and `whack-demo-only`.
+The API accepts a JSON `POST` to `/api/account` with a user ID and password. For local testing, use `demo-user` and `whack-demo-only`.
 
 ```js
 const response = await fetch('http://127.0.0.1:3001/api/account', {

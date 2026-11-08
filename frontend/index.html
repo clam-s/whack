@@ -35,27 +35,17 @@
   </script>
   <style>
     [hidden] { display: none !important; }
-    .magnification :is(.nav-item, #voiceMicrophone, #sendVoiceCommand, #linkedAccountBalance, [data-magnify-figure]):focus-visible {
+    .magnification :is(.nav-item, #voiceMicrophone, #sendVoiceCommand, [data-magnify-figure]):focus-visible {
       position: relative;
       z-index: 1;
       scale: 1.12;
     }
     @media (hover: hover) {
-      .magnification :is(.nav-item, #voiceMicrophone, #sendVoiceCommand, #linkedAccountBalance, [data-magnify-figure]):hover:not(:disabled) {
+      .magnification :is(.nav-item, #voiceMicrophone, #sendVoiceCommand, [data-magnify-figure]):hover:not(:disabled) {
         position: relative;
         z-index: 1;
         scale: 1.12;
       }
-    }
-    .high-contrast :is(#linkedAccountDialog, #linkedAccountPanel) {
-      background: #000 !important;
-      color: #fff !important;
-      border-color: #fff !important;
-    }
-    .high-contrast :is(#linkedAccountDialog, #linkedAccountPanel) :is(p, label, h2, input) {
-      background: #000 !important;
-      color: #fff !important;
-      border-color: #fff !important;
     }
     .high-contrast :focus-visible { outline: 3px solid #ffea00 !important; outline-offset: 3px; }
 
@@ -142,38 +132,29 @@
     }
 
     /* Give pointer and keyboard users clear, consistent feedback on every control. */
-    button, a, [data-nav] {
-      transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
-    }
-    @keyframes controlHoverExpand {
-      0% { transform: scale(1); }
-      65% { transform: scale(1.09) translateY(-3px); }
-      100% { transform: scale(1.05) translateY(-2px); }
-    }
-    @keyframes gazeTargetExpand {
-      0% { transform: scale(1); }
-      65% { transform: scale(1.11) translateY(-4px); }
-      100% { transform: scale(1.06) translateY(-2px); }
+    button:not(:disabled), a[href], [data-nav] {
+      transition: transform 520ms cubic-bezier(.2,.8,.2,1),
+        box-shadow 520ms cubic-bezier(.2,.8,.2,1), background-color 180ms ease;
+      transform-origin: center;
     }
     @media (hover: hover) {
       button:not(:disabled):hover, a:hover, [data-nav]:hover {
         position: relative;
         z-index: 25;
-        transform: scale(1.05) translateY(-2px);
+        transform: scale(1.1) translateY(-1px);
         box-shadow: 0 8px 18px -8px rgba(0, 30, 60, 0.32);
-        animation: controlHoverExpand 240ms cubic-bezier(.2,.8,.2,1) both;
       }
     }
     button:not(:disabled):focus-visible, a:focus-visible, [data-nav]:focus-visible,
     .gaze-active-target {
       position: relative;
       z-index: 25;
-      transform: scale(1.07) translateY(-3px);
+      transform: scale(1.1) translateY(-1px);
       box-shadow: 0 10px 22px -8px rgba(0, 30, 60, 0.32);
     }
     .gaze-active-target {
-      transition: transform 180ms ease-out, box-shadow 180ms ease-out, filter 70ms linear;
-      animation: gazeTargetExpand 260ms cubic-bezier(.2,.8,.2,1) both;
+      transition: transform 520ms cubic-bezier(.2,.8,.2,1),
+        box-shadow 520ms cubic-bezier(.2,.8,.2,1), filter 70ms linear !important;
       will-change: transform;
     }
     #brandLogoLink, #brandLogoLink:hover, #brandLogoLink:focus-visible,
@@ -276,7 +257,6 @@
     hidden
     aria-hidden="true"
   >
-    <button id="backendAccountBtn" type="button">Account sign-in</button>
     <button id="readAloudToggle" type="button" aria-pressed="false">Read aloud</button>
     <button id="readTabBtn" type="button" disabled>Read this tab</button>
     <button id="magnificationToggle" type="button" aria-pressed="false">Magnify on hover</button>
@@ -396,13 +376,6 @@
       <!-- ================= MAIN CONTENT LANDMARK ================= -->
       <main id="mainContent" class="lg:col-span-9 xl:col-span-10 min-h-[550px] lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain" role="main" tabindex="-1">
         
-        <section id="linkedAccountPanel" hidden class="card bg-white rounded-xl border border-slate-200 p-5 mb-4" aria-labelledby="linkedAccountHeading">
-          <h2 id="linkedAccountHeading" class="font-bold">Linked account</h2>
-          <p id="linkedAccountName"></p>
-          <p id="linkedAccountBalance" tabindex="0"></p>
-          <ul id="linkedAccountTransactions" class="mt-2 space-y-1"></ul>
-        </section>
-        <p class="text-xs text-white/75 mb-2">Sample account activity · changes stay in this dashboard and do not move funds. Independent prototype, not affiliated with Capital One.</p>
         <!-- DYNAMIC VIEW INJECTION CONTAINER -->
         <div id="viewContainer" class="space-y-5">
           <!-- Views rendered by JavaScript based on state.currentPage -->
@@ -412,19 +385,6 @@
 
     </div>
   </div>
-
-  <dialog id="linkedAccountDialog" aria-labelledby="linkedAccountDialogTitle" class="m-auto w-[min(28rem,90vw)] rounded-xl border p-5 backdrop:bg-black/60">
-    <h2 id="linkedAccountDialogTitle" class="font-bold">Account sign-in</h2>
-    <form id="linkedAccountForm" class="space-y-3">
-      <p>Sample sign-in: <code>demo-user</code> / <code>whack-demo-only</code>.</p>
-      <label class="block">User ID <input name="userId" autocomplete="username" required class="block w-full rounded border p-2"></label>
-      <label class="block">Password <input name="password" type="password" autocomplete="current-password" required class="block w-full rounded border p-2"></label>
-      <button class="rounded bg-c1-navy px-3 min-h-[44px] text-white">Sign in</button>
-    </form>
-    <button id="linkedAccountSignOut" type="button" hidden class="rounded border px-3 min-h-[44px]">Sign out</button>
-    <p id="linkedAccountStatus" role="status"></p>
-    <form method="dialog"><button class="min-h-[44px] underline">Close</button></form>
-  </dialog>
 
   <!-- ================= MONEY MOVEMENT CONFIRMATION MODAL ================= -->
   <div
