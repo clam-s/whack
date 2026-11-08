@@ -6,6 +6,7 @@
   const commandStatus = byId('voiceCommandStatus');
   const sendButton = byId('sendVoiceCommand');
   const microphone = byId('voiceMicrophone');
+  const voiceActivityLog = byId('voiceActivityLog');
   const drawer = byId('voiceAssistantDrawer');
   const accountDialog = byId('linkedAccountDialog');
   const accountForm = byId('linkedAccountForm');
@@ -19,6 +20,31 @@
   let accountRequest;
   let readAloud = false;
   let voiceSession;
+  let voicePaymentPending = false;
+  let lastPendingConfirmation = false;
+  let submittedFromVoice = false;
+  let pushToTalkHeld = false;
+
+  function logVoiceActivity(message) {
+    if (!voiceActivityLog) return;
+    const item = document.createElement('li');
+    const time = document.createElement('time');
+    time.dateTime = new Date().toISOString();
+    time.className = 'mr-2 font-mono text-slate-500';
+    time.textContent = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
+    item.append(time, document.createTextNode(message));
+    voiceActivityLog.prepend(item);
+    while (voiceActivityLog.children.length > 8) voiceActivityLog.lastElementChild.remove();
+  }
+
+  window.addEventListener('voice-agent-speech', ({ detail }) => {
+    const messages = {
+      requested: 'Requesting spoken acknowledgement.',
+      playing: 'Spoken acknowledgement is playing.',
+      fallback: 'Fish speech unavailable; using browser speech instead.',
+    };
+    if (messages[detail?.status]) logVoiceActivity(messages[detail.status]);
+  });
 
   function preference(key, value) {
     try {
@@ -170,10 +196,22 @@
   }
 
   let previousPage = getState().currentPage;
-  subscribe(({ currentPage }) => {
-    renderAccount(currentPage);
-    if (readAloud && previousPage !== currentPage) readCurrentView();
-    previousPage = currentPage;
+  subscribe((state) => {
+    renderAccount(state.currentPage);
+    if (readAloud && previousPage !== state.currentPage) readCurrentView();
+    previousPage = state.currentPage;
+    if (voicePaymentPending && lastPendingConfirmation && !state.pendingConfirmation) {
+      if (state.notification?.type === 'success') {
+        commandStatus.textContent = 'Demo payment complete.';
+        void window.speakAgentStatus?.('The demo payment is complete.');
+      } else if (state.notification?.type === 'info') {
+        commandStatus.textContent = 'Demo payment cancelled.';
+        void window.speakAgentStatus?.('The demo payment was cancelled.');
+      }
+      voicePaymentPending = false;
+      window.setVoiceState('done');
+    }
+    lastPendingConfirmation = Boolean(state.pendingConfirmation);
   });
 
   const destinations = new Map([
@@ -224,6 +262,51 @@
       navigateTo(page, { amount, recipient, note });
       commandStatus.textContent = 'Send Money form filled in. Review the recipient and amount.';
     }
+    return true;
+  }
+
+  function prepareVoicePayment(page, draft) {
+    try {
+      if (page === 'send-money') {
+        window.appStore.requestSendMoney(draft.recipient, draft.amount, draft.note || '', 'checking');
+      } else {
+        const from = findTransferAccount(draft.from);
+        const to = findTransferAccount(draft.to);
+        if (!from || !to || from === to) return openPaymentDraft(page, draft);
+        window.appStore.requestTransfer(from, to, draft.amount);
+      }
+      voicePaymentPending = true;
+      commandStatus.textContent = 'I prepared the payment for review. Confirm or cancel it in the dialog, or say “confirm payment” or “cancel payment”.';
+      window.setVoiceState('confirming');
+      // Keep recipient, amount, and memo out of Fish Audio TTS. The accessible confirmation dialog
+      // presents the exact details locally; Fish speaks only this generic status prompt.
+      void window.speakAgentStatus?.('I prepared the demo payment for review. Please check the details, then say confirm payment or cancel payment.');
+    } catch (error) {
+      commandStatus.textContent = error.message;
+      void window.speakAgentStatus?.('I could not prepare that payment. Please review the message on screen.');
+    }
+    return true;
+  }
+
+  function handleVoicePaymentConfirmation(text, fromVoice) {
+    const pending = getState().pendingConfirmation;
+    if (!fromVoice || !pending || !['sendMoney', 'transfer'].includes(pending.type)) return false;
+    const phrase = text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    if (/^(?:confirm|confirm payment|confirm this payment|yes confirm|yes confirm payment)$/.test(phrase)) {
+      voicePaymentPending = true;
+      logVoiceActivity('Voice confirmation accepted. Completing the demo payment.');
+      window.appStore.confirmPendingAction();
+      return true;
+    }
+    if (/^(?:cancel|cancel payment|cancel this payment|no cancel|no cancel payment)$/.test(phrase)) {
+      voicePaymentPending = true;
+      logVoiceActivity('Voice cancellation accepted.');
+      window.appStore.cancelPendingAction();
+      return true;
+    }
+    commandStatus.textContent = 'The payment is still waiting for confirmation. Say “confirm payment” or “cancel payment”.';
+    window.setVoiceState('confirming');
+    void window.speakAgentStatus?.('The payment is still waiting. Say confirm payment or cancel payment.');
     return true;
   }
 
@@ -294,7 +377,7 @@
     return true;
   }
 
-  function runLocal(text) {
+  function runLocal(text, fromVoice = false) {
     const phrase = text.toLowerCase().replace(/['’]/g, '').replace(/&/g, ' and ')
       .replace(/\s+/g, ' ').trim().replace(/[.!?,]+$/, '').trimEnd()
       .replace(/^(?:(?:can|could|would) you )?(?:please )?/, '').replace(/,? please$/, '');
@@ -313,12 +396,15 @@
         if (payment) {
           const [, recipient, note] = payment;
           if (!/\b(?:for|from|and|then|tomorrow|today)\b/i.test(recipient)) {
-            return openPaymentDraft('send-money', { amount, recipient, note });
+            const draft = { amount, recipient, note };
+            return fromVoice ? prepareVoicePayment('send-money', draft) : openPaymentDraft('send-money', draft);
           }
         }
         const route = details.match(/^from (.+?) to (.+)$/i);
         if (route && verb.toLowerCase() !== 'send' &&
-            openPaymentDraft('transfer', { amount, from: route[1], to: route[2] })) return true;
+            (fromVoice
+              ? prepareVoicePayment('transfer', { amount, from: route[1], to: route[2] })
+              : openPaymentDraft('transfer', { amount, from: route[1], to: route[2] }))) return true;
       }
     }
     const merchant = commandPhrase.match(
@@ -353,31 +439,55 @@
   commandForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const text = command.value.trim();
-    if (!text || voiceSession || sendButton.disabled || runLocal(text)) return;
+    const fromVoice = submittedFromVoice;
+    submittedFromVoice = false;
+    if (!text || voiceSession || sendButton.disabled) return;
+    if (fromVoice) logVoiceActivity('Transcript received. Checking the dashboard command.');
+    if (handleVoicePaymentConfirmation(text, fromVoice)) return;
+    if (runLocal(text, fromVoice)) {
+      if (fromVoice) logVoiceActivity('Handled by a local dashboard action.');
+      if (fromVoice && !voicePaymentPending) void window.speakAgentStatus?.('Done. I completed that dashboard request.');
+      return;
+    }
     sendButton.disabled = true;
     window.setVoiceState('thinking');
     commandStatus.textContent = 'Finding the matching dashboard action…';
+    if (fromVoice) logVoiceActivity('Sending transcript to OpenRouter for interpretation.');
     try {
       const page = getState().currentPage;
       const controls = availableButtons().map((button) => ({ button, label: describeButton(button) }))
         .filter(({ label }) => label && label.length <= 200).slice(0, 100);
       const result = await post('/api/intent', { text, controls: controls.map(({ label }) => label) });
+      if (fromVoice) logVoiceActivity(`OpenRouter returned ${result.responseCode || 'a response'}.`);
       if (result.responseCode === 'RESPONSE_CLICK_CONTROL') {
         const selected = Number.isInteger(result.controlIndex) ? controls[result.controlIndex] : undefined;
         if (selected && getState().currentPage === page && availableButtons().includes(selected.button) &&
             describeButton(selected.button) === selected.label) {
           activateButton(selected.button);
+          if (fromVoice) logVoiceActivity('Dashboard control selected.');
+          void window.speakAgentStatus?.('Done. I selected that control.');
         } else {
           commandStatus.textContent = 'That control is no longer available. Try the command again.';
         }
+      } else if (result.responseCode === 'RESPONSE_OPEN_SEND_MONEY' && result.draft) {
+        if (fromVoice) logVoiceActivity('Payment request prepared for review; confirmation is still required.');
+        prepareVoicePayment('send-money', result.draft);
+      } else if (result.responseCode === 'RESPONSE_OPEN_TRANSFER' && result.draft) {
+        if (fromVoice) logVoiceActivity('Transfer request prepared for review; confirmation is still required.');
+        prepareVoicePayment('transfer', result.draft);
       } else if (!openDestination(result.responseCode, result)) {
         commandStatus.textContent = result.message || 'Try one dashboard action, such as “open savings” or “show recent transactions”.';
+        if (fromVoice) logVoiceActivity('No matching dashboard action was found.');
+      } else if (!voicePaymentPending) {
+        if (fromVoice) logVoiceActivity('Dashboard action completed.');
+        void window.speakAgentStatus?.('Done. I completed that dashboard request.');
       }
     } catch (error) {
       commandStatus.textContent = error.message;
+      if (fromVoice) logVoiceActivity(`Request failed: ${error.message}`);
     } finally {
       sendButton.disabled = false;
-      window.setVoiceState('done');
+      if (!voicePaymentPending) window.setVoiceState('done');
     }
   });
 
@@ -388,8 +498,158 @@
       return;
     }
     command.value = text;
+    submittedFromVoice = true;
     commandForm.requestSubmit();
+    submittedFromVoice = false;
   }
+
+  function beginPushToTalk() {
+    logVoiceActivity('Control + Space detected. Requesting microphone access.');
+    const Recorder = window.MediaRecorder;
+    const media = window.navigator?.mediaDevices;
+    const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus'].find((type) => Recorder?.isTypeSupported(type));
+    if (!Recorder || !media?.getUserMedia || !mimeType || location.protocol === 'file:') {
+      commandStatus.textContent = 'Push-to-talk is unavailable here. Use the microphone button or type a command.';
+      return;
+    }
+    if (voiceSession || sendButton.disabled || accountDialog.open) return;
+    if (drawer.inert) byId('voiceAssistantBtn').click();
+
+    const session = { pushToTalk: true, request: new AbortController(), released: false };
+    voiceSession = session;
+    sendButton.disabled = true;
+    microphone.disabled = true;
+    microphone.textContent = 'Listening…';
+    commandStatus.textContent = 'Listening. Release Control + Space to transcribe and send.';
+    window.stopAgentSpeech?.();
+    window.speechSynthesis?.cancel();
+    document.body.classList.add('voice-listening');
+    window.setVoiceState('listening');
+
+    function releaseStream() {
+      clearTimeout(session.timer);
+      session.stream?.getTracks().forEach((track) => track.stop());
+      session.stream = undefined;
+      document.body.classList.remove('voice-listening');
+    }
+    function finish() {
+      releaseStream();
+      if (voiceSession === session) voiceSession = undefined;
+      microphone.disabled = false;
+      microphone.textContent = 'Start microphone';
+      sendButton.disabled = false;
+      window.setVoiceState('done');
+    }
+    async function upload(chunks, type) {
+      if (voiceSession !== session || session.request.signal.aborted) return;
+      releaseStream();
+      microphone.disabled = true;
+      microphone.textContent = 'Transcribing…';
+      window.setVoiceState('thinking');
+      commandStatus.textContent = 'Transcribing your request…';
+      logVoiceActivity('Recording sent for speech transcription.');
+      try {
+        const audio = new Blob(chunks, { type });
+        if (!audio.size) throw new Error('No speech was recorded. Hold the shortcut and try again.');
+        const response = await fetch('/api/transcribe', {
+          method: 'POST', body: audio, signal: session.request.signal,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || data.message || 'Speech transcription failed.');
+        if (voiceSession !== session) return;
+        logVoiceActivity('Speech transcription succeeded.');
+        finish();
+        applyTranscript(data.text.trim());
+      } catch (error) {
+        if (voiceSession !== session) return;
+        finish();
+        commandStatus.textContent = error.message;
+        logVoiceActivity(`Transcription failed: ${error.message}`);
+      }
+    }
+    void media.getUserMedia({ audio: true }).then((stream) => {
+      if (voiceSession !== session) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      session.stream = stream;
+      logVoiceActivity('Microphone ready. Recording speech.');
+      const recorder = new Recorder(stream, { mimeType, audioBitsPerSecond: 32_000 });
+      session.recorder = recorder;
+      const chunks = [];
+      recorder.ondataavailable = ({ data }) => { if (data.size) chunks.push(data); };
+      recorder.onstop = () => void upload(chunks, recorder.mimeType || mimeType);
+      recorder.onerror = () => {
+        if (voiceSession !== session) return;
+        finish();
+        commandStatus.textContent = 'Recording failed. Try again or type a command.';
+      };
+      recorder.start();
+      session.timer = setTimeout(() => endPushToTalk(), 15_000);
+      microphone.disabled = false;
+      if (session.released) endPushToTalk();
+    }).catch((error) => {
+      if (voiceSession !== session) return;
+      finish();
+      commandStatus.textContent = error.name === 'NotAllowedError'
+        ? 'Microphone permission was denied. Allow access or type a command.'
+        : 'Could not record from your microphone. Try again or type a command.';
+      logVoiceActivity(`Microphone error: ${commandStatus.textContent}`);
+    });
+  }
+
+  function endPushToTalk() {
+    const session = voiceSession;
+    if (!session?.pushToTalk) return;
+    session.released = true;
+    if (session.recorder?.state === 'recording') {
+      microphone.disabled = true;
+      session.recorder.stop();
+    }
+  }
+
+  function cancelPushToTalk() {
+    const session = voiceSession;
+    if (!session?.pushToTalk) return false;
+    session.request.abort();
+    if (session.recorder?.state === 'recording') session.recorder.stop();
+    session.stream?.getTracks().forEach((track) => track.stop());
+    voiceSession = undefined;
+    document.body.classList.remove('voice-listening');
+    microphone.disabled = false;
+    microphone.textContent = 'Start microphone';
+    sendButton.disabled = false;
+    commandStatus.textContent = 'Push-to-talk cancelled.';
+    window.setVoiceState('done');
+    return true;
+  }
+
+  window.addEventListener('keydown', (event) => {
+    const editable = event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable="true"]');
+    if (event.code !== 'Space' || !event.ctrlKey || event.repeat || editable || pushToTalkHeld) return;
+    event.preventDefault();
+    pushToTalkHeld = true;
+    beginPushToTalk();
+  }, true);
+  window.addEventListener('keyup', (event) => {
+    if (!pushToTalkHeld || (event.code !== 'Space' && event.key !== 'Control')) return;
+    if (event.code === 'Space') event.preventDefault();
+    pushToTalkHeld = false;
+    endPushToTalk();
+  });
+  window.addEventListener('blur', () => {
+    if (pushToTalkHeld) {
+      pushToTalkHeld = false;
+      endPushToTalk();
+    }
+  });
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') cancelPushToTalk();
+  });
+  window.addEventListener('pagehide', () => {
+    pushToTalkHeld = false;
+    cancelPushToTalk();
+  });
 
   function enableRecorderFallback() {
     const Recorder = window.MediaRecorder;
@@ -483,6 +743,7 @@
           finish(session);
           commandStatus.textContent = 'Recording failed. Try again or type a command.';
         };
+        window.stopAgentSpeech?.();
         window.speechSynthesis?.cancel();
         recorder.start();
         document.body.classList.add('voice-listening');
@@ -576,6 +837,7 @@
     microphone.textContent = 'Stop microphone';
     commandStatus.textContent = 'Starting microphone…';
     try {
+      window.stopAgentSpeech?.();
       window.speechSynthesis?.cancel();
       recognition.start();
     } catch {

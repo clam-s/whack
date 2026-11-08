@@ -342,9 +342,15 @@
           <button type="button" data-quick-command="open savings" class="rounded border px-3 min-h-[44px]">Open savings</button>
           <button type="button" data-quick-command="show recent transactions" class="rounded border px-3 min-h-[44px]">Recent transactions</button>
         </div>
-        <p class="text-sm text-slate-600">Try “click Contrast”, “click View All Recent Transactions”, or “show transactions from Spotify”.</p>
+        <p class="text-sm text-slate-600">Hold <kbd>Control</kbd> + <kbd>Space</kbd> to speak; release to send. For payments, say “confirm payment” or “cancel payment” after reviewing the dialog.</p>
+        <p class="text-sm text-slate-600">You can also try “click Contrast”, “click View All Recent Transactions”, or “show transactions from Spotify”.</p>
       </form>
       <p id="voiceCommandStatus" class="text-sm" role="status"></p>
+      <section class="rounded border border-slate-200 bg-slate-50 p-3" aria-labelledby="voiceActivityHeading">
+        <h3 id="voiceActivityHeading" class="text-xs font-bold uppercase tracking-wide text-slate-600">Recent voice activity</h3>
+        <ol id="voiceActivityLog" class="mt-2 max-h-36 space-y-1 overflow-y-auto text-sm text-slate-800" role="log" aria-live="polite" aria-relevant="additions"></ol>
+        <p class="mt-2 text-xs text-slate-500">Shows recording, transcription, OpenRouter, and action results on this device.</p>
+      </section>
 
       <!-- State Presentation Card -->
       <div id="voiceStateContainer" class="p-4 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between">
@@ -507,7 +513,7 @@
     role="alertdialog"
     aria-modal="true"
     aria-labelledby="confirmModalHeading"
-    aria-describedby="confirmModalSummary"
+    aria-describedby="confirmModalSummary confirmModalDetails"
   >
     <div class="bg-white rounded-xl shadow-2xl border-2 border-c1-navy max-w-lg w-full p-6 space-y-5">
       <div class="border-b border-slate-200 pb-3 flex items-center space-x-3">
@@ -897,6 +903,48 @@
       utter.pitch = 1.0;
       window.speechSynthesis.speak(utter);
     }
+    let agentAudio;
+    let agentSpeechRequest;
+    window.stopAgentSpeech = function () {
+      agentSpeechRequest?.abort();
+      agentSpeechRequest = undefined;
+      agentAudio?.pause();
+      if (agentAudio?.src?.startsWith('blob:')) URL.revokeObjectURL(agentAudio.src);
+      agentAudio = undefined;
+      window.speechSynthesis?.cancel();
+    };
+    window.speakAgentStatus = async function (text) {
+      if (!text || document.body.classList.contains('voice-listening')) return;
+      window.dispatchEvent(new CustomEvent('voice-agent-speech', { detail: { status: 'requested' } }));
+      agentSpeechRequest?.abort();
+      const request = new AbortController();
+      agentSpeechRequest = request;
+      agentAudio?.pause();
+      if (agentAudio?.src?.startsWith('blob:')) URL.revokeObjectURL(agentAudio.src);
+      try {
+        const response = await fetch('/api/speak', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+          signal: request.signal,
+        });
+        if (!response.ok) throw new Error('Fish Audio is unavailable');
+        if (agentSpeechRequest !== request) return;
+        const url = URL.createObjectURL(await response.blob());
+        agentAudio = new Audio(url);
+        agentAudio.addEventListener('ended', () => {
+          URL.revokeObjectURL(url);
+          if (agentAudio?.src === url) agentAudio = undefined;
+        }, { once: true });
+        await agentAudio.play();
+        window.dispatchEvent(new CustomEvent('voice-agent-speech', { detail: { status: 'playing' } }));
+      } catch {
+        if (request.signal.aborted) return;
+        // Keep agent feedback available if Fish Audio is unconfigured or temporarily unavailable.
+        window.dispatchEvent(new CustomEvent('voice-agent-speech', { detail: { status: 'fallback' } }));
+        speakText(text);
+      }
+    };
 
     // Speak Magnified Item
     speakMagnifiedBtn?.addEventListener('click', () => {

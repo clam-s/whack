@@ -8,6 +8,13 @@ import { runJavaScript } from './runner.mjs';
 
 const { OPENROUTER_API_KEY, OPENROUTER_MODEL, FRONTEND_ORIGIN } = process.env;
 const transcriptionModel = process.env.OPENROUTER_TRANSCRIPTION_MODEL || 'openai/whisper-large-v3';
+const { FISH_API_KEY } = process.env;
+const fishAsrModel = process.env.FISH_ASR_MODEL || 'transcribe-1-pro';
+const fishTtsModel = process.env.FISH_TTS_MODEL || 'drama-3';
+const fishTtsVoiceId = process.env.FISH_TTS_VOICE_ID?.trim() || '933563129e564b19a115bedd57b7406a';
+const fishTtsDirection = process.env.FISH_TTS_DIRECTION?.trim();
+const fishTtsSpeed = boundedNumber(process.env.FISH_TTS_SPEED, 1, 0.5, 2);
+const fishTtsVolume = boundedNumber(process.env.FISH_TTS_VOLUME, 0, -20, 20);
 const storeVoiceClips = process.env.DEBUG_STORE_VOICE_CLIPS === 'true';
 const voiceClipDirectory = new URL('./data/voice-clips/', import.meta.url);
 const audioFormats = new Map([['audio/webm', 'webm'], ['audio/ogg', 'ogg']]);
@@ -28,6 +35,7 @@ for (const [path, [file, type]] of frontendFiles) {
 let activeGenerations = 0;
 let activeAccountRequests = 0;
 let activeTranscriptions = 0;
+let activeSpeechRequests = 0;
 let executing = false;
 
 class RequestError extends Error {
@@ -40,6 +48,62 @@ class RequestError extends Error {
 function send(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(body));
+}
+
+function sendAudio(res, audio) {
+  res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Cache-Control': 'no-store' });
+  res.end(audio);
+}
+
+function boundedNumber(value, fallback, min, max) {
+  if (value === undefined || value.trim() === '') return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
+}
+
+async function transcribeWithFish(audio, format) {
+  const form = new FormData();
+  form.append('audio', new Blob([audio], { type: `audio/${format}` }), `voice.${format}`);
+  form.append('ignore_timestamps', 'true');
+  const response = await fetch('https://api.fish.audio/v1/asr', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${FISH_API_KEY}`, model: fishAsrModel },
+    body: form,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new Error(`Fish Audio transcription returned HTTP ${response.status}`);
+  }
+  const result = await response.json();
+  if (typeof result.text !== 'string') throw new Error('Fish Audio did not return a transcript');
+  return result.text.trim();
+}
+
+async function synthesizeWithFish(text) {
+  const response = await fetch('https://api.fish.audio/v1/tts', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${FISH_API_KEY}`,
+      'Content-Type': 'application/json',
+      model: fishTtsModel,
+    },
+    body: JSON.stringify({
+      text: fishTtsDirection ? `${fishTtsDirection} ${text}` : text,
+      ...(fishTtsVoiceId ? { reference_id: fishTtsVoiceId } : {}),
+      prosody: { speed: fishTtsSpeed, volume: fishTtsVolume },
+      format: 'mp3',
+      normalize: true,
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new Error(`Fish Audio speech synthesis returned HTTP ${response.status}`);
+  }
+  const audio = Buffer.from(await response.arrayBuffer());
+  if (!audio.length || audio.length > 5 * 1024 * 1024) throw new Error('Fish Audio returned invalid audio');
+  return audio;
 }
 
 async function saveVoiceClip(audio, format) {
@@ -103,7 +167,7 @@ const server = createServer(async (req, res) => {
   }
   if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
 
-  if (path !== '/api/generate' && path !== '/api/intent' && path !== '/api/execute' && path !== '/api/account' && path !== '/api/transcribe') {
+  if (path !== '/api/generate' && path !== '/api/intent' && path !== '/api/execute' && path !== '/api/account' && path !== '/api/transcribe' && path !== '/api/speak') {
     return send(res, 404, { error: 'Route not found' });
   }
   if (req.method === 'OPTIONS') {
@@ -123,22 +187,42 @@ const server = createServer(async (req, res) => {
       res.setHeader('Cache-Control', 'no-store');
       const format = audioFormats.get(req.headers['content-type']?.split(';')[0].trim().toLowerCase());
       if (!format) throw new RequestError(415, 'Expected WebM or Ogg audio');
-      if (!OPENROUTER_API_KEY && !storeVoiceClips) throw new RequestError(503, 'Speech transcription requires an OpenRouter API key');
+      if (!FISH_API_KEY && !OPENROUTER_API_KEY && !storeVoiceClips) throw new RequestError(503, 'Speech transcription requires a Fish Audio or OpenRouter API key');
       if (activeTranscriptions >= 2) throw new RequestError(429, 'Speech transcription is busy');
       activeTranscriptions++;
       try {
         const audio = await readBytes(req, 512 * 1024);
         if (!audio.length) throw new RequestError(400, 'No audio was recorded');
         if (storeVoiceClips) await saveVoiceClip(audio, format);
-        if (!OPENROUTER_API_KEY) throw new RequestError(503, 'Speech transcription requires an OpenRouter API key');
-        const text = await transcribeAudio(audio, format, { apiKey: OPENROUTER_API_KEY, model: transcriptionModel });
+        if (!FISH_API_KEY && !OPENROUTER_API_KEY) {
+          throw new RequestError(503, 'Speech transcription requires a Fish Audio or OpenRouter API key');
+        }
+        const text = FISH_API_KEY
+          ? await transcribeWithFish(audio, format)
+          : await transcribeAudio(audio, format, { apiKey: OPENROUTER_API_KEY, model: transcriptionModel });
         return send(res, 200, { text });
       } catch (error) {
         if (error instanceof RequestError) throw error;
         if (error.name === 'TimeoutError') throw new RequestError(504, 'Speech transcription timed out');
-        throw new RequestError(502, 'OpenRouter could not transcribe the recording');
+        throw new RequestError(502, 'Speech transcription failed');
       } finally {
         activeTranscriptions--;
+      }
+    }
+
+    if (path === '/api/speak') {
+      res.setHeader('Cache-Control', 'no-store');
+      if (!FISH_API_KEY) throw new RequestError(503, 'Fish Audio is not configured');
+      if (activeSpeechRequests >= 2) throw new RequestError(429, 'Speech synthesis is busy');
+      const text = readField(await readBody(req), 'text', 2_000);
+      activeSpeechRequests++;
+      try {
+        return sendAudio(res, await synthesizeWithFish(text));
+      } catch (error) {
+        if (error.name === 'TimeoutError') throw new RequestError(504, 'Speech synthesis timed out');
+        throw new RequestError(502, 'Speech synthesis failed');
+      } finally {
+        activeSpeechRequests--;
       }
     }
 

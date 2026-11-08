@@ -8,14 +8,15 @@ Common dashboard commands run in the browser. OpenRouter interprets more loosely
 
 - **Node.js 22 and JavaScript ES modules** for the backend and generated scripts.
 - **Built-in Node.js APIs** for the HTTP server (`node:http`), OpenRouter requests (`fetch`), and launching the runner (`node:child_process`). No npm packages are required.
-- **OpenRouter** for natural-language commands, fallback speech transcription, and optional JavaScript generation. Choose the chat model with `OPENROUTER_MODEL`.
+- **OpenRouter** for natural-language commands and optional JavaScript generation. Choose the chat model with `OPENROUTER_MODEL`.
+- **Fish Audio** for push-to-talk transcription and short spoken agent status replies when `FISH_API_KEY` is configured.
 - **Docker** for optional code execution using the `node:22-bookworm-slim` image.
 - **SQLite** via Node.js `node:sqlite` for local demo accounts and transaction history.
 
 ## Start the backend
 
 1. Install Node.js 22.13 or newer.
-2. If you don't have a `.env` file, copy `.env.example` to `.env`. Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` to enable natural-language commands and the recording fallback. If the browser frontend runs on a different origin, set `FRONTEND_ORIGIN` to match it exactly.
+2. If you don't have a `.env` file, copy `.env.example` to `.env`. Set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` to enable natural-language commands. Set `FISH_API_KEY` to enable Fish Audio push-to-talk transcription and agent speech. If the browser frontend runs on a different origin, set `FRONTEND_ORIGIN` to match it exactly.
 3. Run `node --env-file=.env backend/server.mjs`. The backend listens at `http://127.0.0.1:3001` by default.
 4. Open `http://127.0.0.1:3001` to use the dashboard and API on the same address.
 
@@ -30,14 +31,18 @@ Open **Voice Assistant** and either type a command or use the microphone. Comman
 | “Click View All Recent Transactions” | Opens the merchant filter page. You can also get there from **Recent Transactions → View All** on the dashboard. |
 | “Which charges were for Spotify?” | Filters purchases by merchant. Say “clear merchant filter” to show all merchant purchases. |
 | “Turn on high contrast” | Asks the assistant to select the dashboard's Contrast control. |
-| “Put fifty dollars into savings from checking” | Fills the Transfer form with the source account, destination account, and amount. |
-| “Send 20 dollars to Alex Smith for dinner” | Fills the Send Money form with the recipient, amount, and an editable dinner memo. |
+| “Put fifty dollars into savings from checking” | Opens a review dialog with the source account, destination account, and amount. |
+| “Send Jane $100 and say ‘That’s for your birthday’” | Opens a review dialog with Jane, $100, and the birthday memo. |
 
-Transfer and Send Money commands prepare editable forms. Use **Review** and then **Confirm Transaction** to complete the demo action.
+Voice payment requests never execute on the first utterance. Review the dialog, then say “confirm payment” or “cancel payment” using push-to-talk, or use the on-screen buttons. Confirmation completes a simulated demo transaction in the browser; it does not move real money. The agent speaks a generic acknowledgement and completion status. Exact payment details stay in the accessible dialog and are not sent to Fish Audio for TTS.
 
-Select **Start microphone** and allow access in the browser. The assistant previews what it hears as you speak and puts the final transcript in the command field. When recording stops, the assistant submits the final transcript automatically. To type a command, use the same field and select **Send command**. [Browser speech recognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition)
+Hold **Control + Space** and speak; release either key to submit the recording. The shortcut works while the dashboard is focused, but not while typing in a text field. The Voice Assistant's recent activity panel shows recording, transcription, OpenRouter, and action results. You can also select **Start microphone** for browser speech recognition, or type a command and select **Send command**. [Browser speech recognition](https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognition)
 
-In Firefox, select **Record command**, allow microphone access, and select **Stop and transcribe** after speaking. Clips stop automatically at 15 seconds. The backend sends the clip to OpenRouter for transcription using the existing API key and the `OPENROUTER_TRANSCRIPTION_MODEL` setting, which defaults to `openai/whisper-large-v3`. The assistant submits the transcript once the clip is processed. [OpenRouter transcription](https://openrouter.ai/blog/tutorials/transcription-on-openrouter/)
+Push-to-talk recordings stop when the keybind is released and are capped at 15 seconds. With `FISH_API_KEY`, the backend transcribes using Fish Audio's `transcribe-1-pro`; without it, the existing OpenRouter transcription fallback is used. The backend keeps the Fish key out of the browser. Fish's ASR is billed by audio duration; check the current rate before use.
+
+Fish Audio handles speech-to-text and speech output; OpenRouter still interprets the transcript as a dashboard action. Fish currently lists `transcribe-1-pro` at $0.36 per audio hour and `drama-3` at a promotional $10 per million UTF-8 bytes through November 30, 2026. A 15-second recording is about $0.0015 for transcription, and $1 covers about 100,000 TTS bytes at the promotional rate, before any OpenRouter usage. Fish receives the push-to-talk recording for transcription. Fish TTS receives only generic status phrases, not recipient names, amounts, or memo text.
+
+The default agent voice is Sarah with the `drama-3` model. To change it, choose a voice in Fish Audio's **Voice Library** or **My Voices**, copy its model ID, and set `FISH_TTS_VOICE_ID` in your local `.env`. That ID is sent as Fish's `reference_id`. `FISH_TTS_SPEED` adjusts delivery from 0.5 to 2.0 (default `1`), `FISH_TTS_VOLUME` ranges from -20 to 20 (default `0`), and `FISH_TTS_DIRECTION` can add a Fish direction tag such as `[warm]`. Restart the backend after changing `.env`. Keep the actual API key in `.env`, never `.env.example` or screenshots.
 
 Set `DEBUG_STORE_VOICE_CLIPS=true` in `.env` and restart the backend to save uploaded WebM or Ogg clips in `backend/data/voice-clips/`. The terminal prints each saved filename. Clips are saved before transcription, so they are available even when the transcription request fails. The directory is ignored by Git, and clips remain on disk until deleted. Browser-native speech recognition does not upload a clip to this backend.
 
