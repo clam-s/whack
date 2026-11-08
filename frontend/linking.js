@@ -16,6 +16,8 @@
   const signOut = byId('linkedAccountSignOut');
   const readToggle = byId('readAloudToggle');
   const readButton = byId('readTabBtn');
+  const assistantNotice = byId('assistantNotice');
+  let assistantNoticeTimer;
   let account;
   let accountRequest;
   let readAloud = false;
@@ -24,6 +26,27 @@
   let lastPendingConfirmation = false;
   let submittedFromVoice = false;
   let pushToTalkHeld = false;
+
+  function showAssistantNotice(message, state = 'info') {
+    if (!assistantNotice || !message) return;
+    clearTimeout(assistantNoticeTimer);
+    assistantNotice.textContent = message;
+    assistantNotice.hidden = false;
+    assistantNotice.className = `fixed top-[76px] right-4 z-[80] max-w-[min(28rem,calc(100vw-2rem))] rounded-lg border px-4 py-3 text-sm font-medium shadow-lg ${
+      state === 'error' ? 'border-red-200 bg-red-50 text-red-900' :
+        state === 'success' ? 'border-emerald-200 bg-white text-slate-800' :
+          'border-blue-200 bg-white text-slate-800'
+    }`;
+    if (state !== 'pending') assistantNoticeTimer = setTimeout(() => { assistantNotice.hidden = true; }, 5000);
+  }
+
+  void window.backendFetch('/api/health').then(async (response) => {
+    const status = await response.json();
+    if (!response.ok) throw new Error(status.error || 'Local backend health check failed.');
+    if (!status.openRouterConfigured) {
+      showAssistantNotice('Backend is running, but OpenRouter is missing its API key or model.', 'error');
+    }
+  }).catch((error) => showAssistantNotice(error.message, 'error'));
 
   function logVoiceActivity(message) {
     if (!voiceActivityLog) return;
@@ -69,15 +92,14 @@
   });
 
   async function post(path, body, signal) {
-    if (location.protocol === 'file:') throw new Error('Open the dashboard through the Node server to use the backend.');
-    const response = await fetch(path, {
+    const response = await window.backendFetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal,
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.message || data.error || `HTTP ${response.status}`);
+    if (!response.ok) throw new Error(data.error || data.message || `HTTP ${response.status}`);
     return data;
   }
 
@@ -325,6 +347,24 @@
     return true;
   }
 
+  function summarizeIntentResult(code, result) {
+    const state = getState();
+    const money = window.appStore.formatCurrency;
+    if (code === 'RESPONCE_SHOW_BALANCE' || code === 'RESPONSE_OPEN_CHECKING') {
+      return `Checking balance: ${money(state.accounts.checking.balance)}.`;
+    }
+    if (code === 'RESPONSE_OPEN_SAVINGS') {
+      return `Savings balance: ${money(state.accounts.savings.balance)}.`;
+    }
+    if (code === 'RESPONSE_OPEN_CREDIT_CARDS') {
+      return `Credit card overview opened. Current balance: ${money(state.accounts.credit.balance)}.`;
+    }
+    if (code === 'REPONCE_SHOW_TRANSACTIONS') return 'Your recent transactions are shown.';
+    if (code === 'RESPONSE_FILTER_MERCHANTS') return byId('merchantResultCount')?.textContent || 'Your transactions are filtered.';
+    if (code === 'RESPONSE_OPEN_LOANS') return `Loan overview opened. Remaining balance: ${money(state.accounts.loans.balance)}.`;
+    return commandStatus.textContent || result?.message || 'Dashboard action completed.';
+  }
+
   const localActions = [
     [/^(?:(?:show(?: me)?|tell me|check|view|whats|what is) )?(?:(?:my|the) )?(?:available |current |checking |account )?balance$/, 'RESPONCE_SHOW_BALANCE'],
     [/^(?:(?:show(?: me)?|view|list|check) )?(?:(?:my|the) )?(?:recent |latest |last )?(?:transactions?|transaction history)$/, 'REPONCE_SHOW_TRANSACTIONS'],
@@ -448,6 +488,10 @@
     if (fromVoice) logVoiceActivity('Transcript received. Checking the dashboard command.');
     if (handleVoicePaymentConfirmation(text, fromVoice)) return;
     if (runLocal(text, fromVoice)) {
+      const localOutcome = /\bbalance\b/i.test(text)
+        ? summarizeIntentResult('RESPONCE_SHOW_BALANCE')
+        : commandStatus.textContent || 'Dashboard action completed.';
+      showAssistantNotice(localOutcome, 'success');
       if (fromVoice) logVoiceActivity('Handled by a local dashboard action.');
       if (fromVoice && !voicePaymentPending) void window.speakAgentStatus?.('Certainly. I have completed that dashboard request.');
       return;
@@ -455,6 +499,7 @@
     sendButton.disabled = true;
     window.setVoiceState('thinking');
     commandStatus.textContent = 'Finding the matching dashboard action…';
+    showAssistantNotice('Understanding your request…', 'pending');
     if (fromVoice) logVoiceActivity('Sending transcript to OpenRouter for interpretation.');
     try {
       const page = getState().currentPage;
@@ -489,8 +534,11 @@
         if (fromVoice) logVoiceActivity('Dashboard action completed.');
         void window.speakAgentStatus?.('Of course. I have completed that dashboard request.');
       }
+      if (commandFailed) showAssistantNotice(commandStatus.textContent, 'error');
+      else showAssistantNotice(summarizeIntentResult(result.responseCode, result), 'success');
     } catch (error) {
       commandStatus.textContent = error.message;
+      showAssistantNotice(error.message, 'error');
       commandFailed = true;
       window.setVoiceState('error');
       if (fromVoice) logVoiceActivity(`Request failed: ${error.message}`);
@@ -504,6 +552,7 @@
     if (accountDialog.open) return;
     if (!text) {
       commandStatus.textContent = 'No speech was recognized. Try again or type a command.';
+      showAssistantNotice(commandStatus.textContent, 'error');
       window.setVoiceState('error');
       return;
     }
@@ -558,11 +607,12 @@
       microphone.textContent = 'Transcribing…';
       window.setVoiceState('thinking');
       commandStatus.textContent = 'Transcribing your request…';
+      showAssistantNotice('Transcribing your voice request…', 'pending');
       logVoiceActivity('Recording sent for speech transcription.');
       try {
         const audio = new Blob(chunks, { type });
         if (!audio.size) throw new Error('No speech was recorded. Hold the shortcut and try again.');
-        const response = await fetch('/api/transcribe', {
+        const response = await window.backendFetch('/api/transcribe', {
           method: 'POST', body: audio, signal: session.request.signal,
         });
         const data = await response.json();
@@ -575,6 +625,7 @@
         if (voiceSession !== session) return;
         finish();
         commandStatus.textContent = error.message;
+        showAssistantNotice(error.message, 'error');
         window.setVoiceState('error');
         logVoiceActivity(`Transcription failed: ${error.message}`);
       }
@@ -710,10 +761,11 @@
       microphone.textContent = 'Transcribing…';
       window.setVoiceState('thinking');
       commandStatus.textContent = 'Transcribing your recording…';
+      showAssistantNotice('Transcribing your voice request…', 'pending');
       const audio = new Blob(chunks, { type });
       try {
         if (!audio.size) throw new Error('No audio was recorded. Try again or type a command.');
-        const response = await fetch('/api/transcribe', {
+        const response = await window.backendFetch('/api/transcribe', {
           method: 'POST', body: audio, signal: session.request.signal,
         });
         const data = await response.json();
@@ -725,6 +777,7 @@
         if (voiceSession !== session) return;
         finish(session);
         commandStatus.textContent = error.message;
+        showAssistantNotice(error.message, 'error');
       }
     }
 

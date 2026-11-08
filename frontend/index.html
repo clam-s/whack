@@ -283,6 +283,8 @@
     </div>
   </header>
 
+  <div id="assistantNotice" hidden role="status" aria-live="polite" class="fixed top-[76px] right-4 z-[80] max-w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 shadow-lg"></div>
+
   <!-- Non-visual controls used by the top-bar voice assistant and accessibility helpers. -->
   <div
     id="voiceAssistantRuntime"
@@ -538,6 +540,14 @@
   <script>
     const store = window.C1Store;
     window.appStore = store;
+    const localDashboard = location.protocol === 'file:' ||
+      (['localhost', '127.0.0.1'].includes(location.hostname) && location.port !== '3001');
+    const backendBase = window.BACKEND_BASE_URL || (localDashboard ? 'http://127.0.0.1:3001' : '');
+    window.backendUrl = (path) => `${backendBase}${path}`;
+    window.backendFetch = (path, options = {}) => fetch(window.backendUrl(path), options).catch((error) => {
+      if (error.name === 'AbortError') throw error;
+      throw new Error('Cannot reach the local backend. Start it with `node --env-file=.env backend/server.mjs` and keep it running on port 3001.');
+    });
 
     const {
       getState,
@@ -1049,7 +1059,7 @@
       try { agentAudioSource?.stop(); } catch {}
       agentAudioSource = undefined;
       try {
-        const response = await fetch('/api/speak', {
+        const response = await window.backendFetch('/api/speak', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text }),

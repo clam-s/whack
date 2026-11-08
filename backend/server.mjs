@@ -182,11 +182,34 @@ const server = createServer(async (req, res) => {
   const origin = req.headers.origin;
   res.setHeader('Vary', 'Origin');
   const localPort = server.address().port;
-  if (origin && origin !== FRONTEND_ORIGIN && origin !== `http://127.0.0.1:${localPort}` &&
-      origin !== `http://localhost:${localPort}`) {
+  const allowedOrigins = new Set([
+    FRONTEND_ORIGIN,
+    `http://127.0.0.1:${localPort}`,
+    `http://localhost:${localPort}`,
+  ].filter(Boolean));
+  if (FRONTEND_ORIGIN) {
+    try {
+      const configured = new URL(FRONTEND_ORIGIN);
+      if (configured.hostname === 'localhost') allowedOrigins.add(`${configured.protocol}//127.0.0.1:${configured.port}`);
+      if (configured.hostname === '127.0.0.1') allowedOrigins.add(`${configured.protocol}//localhost:${configured.port}`);
+    } catch { /* An invalid configured origin is ignored; same-origin local use still works. */ }
+  }
+  // A file:// dashboard has an opaque "null" origin. This backend binds only to loopback,
+  // so allow the local-file frontend to reach its explicitly configured local API.
+  if (origin && origin !== 'null' && !allowedOrigins.has(origin)) {
     return send(res, 403, { error: 'Origin is not allowed' });
   }
   if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
+
+  if (path === '/api/health' && req.method === 'GET') {
+    res.setHeader('Cache-Control', 'no-store');
+    return send(res, 200, {
+      status: 'ok',
+      openRouterConfigured: Boolean(OPENROUTER_API_KEY && OPENROUTER_MODEL),
+      fishAudioConfigured: Boolean(FISH_API_KEY),
+      model: OPENROUTER_MODEL || null,
+    });
+  }
 
   if (path !== '/api/generate' && path !== '/api/intent' && path !== '/api/execute' && path !== '/api/account' && path !== '/api/transcribe' && path !== '/api/speak') {
     return send(res, 404, { error: 'Route not found' });
@@ -274,10 +297,12 @@ const server = createServer(async (req, res) => {
         throw new RequestError(400, 'controls must contain at most 100 labels of up to 200 characters each');
       }
       if (!OPENROUTER_API_KEY || !OPENROUTER_MODEL) {
+        console.warn(`[${path}] OpenRouter is not configured`);
         return send(res, 503, { ...fallback, error: 'OpenRouter is not configured' });
       }
       if (activeGenerations >= 4) throw new RequestError(429, 'Generation is busy');
       activeGenerations++;
+      const startedAt = performance.now();
       try {
         const config = { apiKey: OPENROUTER_API_KEY, model: OPENROUTER_MODEL };
         const result = navigation
@@ -286,12 +311,20 @@ const server = createServer(async (req, res) => {
         if (!navigation && result.code === null && !isAccountIntent(result.responseCode)) {
           return send(res, 502, { ...result, error: 'OpenRouter did not generate code' });
         }
+        console.info(`[${path}] ${Math.round(performance.now() - startedAt)}ms → ${result.responseCode}`);
         return send(res, 200, result);
       } catch (error) {
         const timedOut = error.name === 'TimeoutError';
+        console.error(`[${path}] ${timedOut ? 'request timed out' : error.message}`);
+        const message = timedOut
+          ? 'OpenRouter request timed out. Please try again.'
+          : error.message?.startsWith('OpenRouter ')
+            ? error.message
+            : 'OpenRouter could not process the request. Please try again.';
         return send(res, timedOut ? 504 : 502, {
           ...fallback,
-          error: timedOut ? 'OpenRouter request timed out' : 'OpenRouter could not process the request',
+          error: message,
+          message,
         });
       } finally {
         activeGenerations--;
