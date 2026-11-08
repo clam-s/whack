@@ -165,6 +165,7 @@
 
     #gazeKeyboard, #gazeChoiceMenu { box-shadow: 0 18px 50px -16px rgba(0, 20, 40, .55); }
     #gazeKeyboard { max-height: min(28vh, 270px); overflow-y: auto; }
+    body.gaze-keyboard-open #mainContent { scroll-padding-bottom: min(36vh, 340px); }
     .gaze-key { min-width: 36px; min-height: 36px; touch-action: manipulation; font-size: .9rem; }
     @media (max-width: 640px) {
       #gazeNumberKeys { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
@@ -613,6 +614,7 @@
         gazeKeyboardTarget.dispatchEvent(new Event('change', { bubbles: true }));
       }
       gazeKeyboard.hidden = true;
+      document.body.classList.remove('gaze-keyboard-open');
       gazeKeyboardTarget = null;
       gazeKeyboardShift = false;
     }
@@ -630,12 +632,30 @@
       gazeKeyboard.classList.toggle('gaze-numeric-only', field.type === 'number');
       gazeKeyboard.hidden = false;
       positionGazeKeyboard();
+      document.body.classList.add('gaze-keyboard-open');
+      requestAnimationFrame(() => {
+        const keyboardTop = gazeKeyboard.getBoundingClientRect().top;
+        const fieldRect = field.getBoundingClientRect();
+        const visibleBottom = keyboardTop - 16;
+        if (fieldRect.bottom > visibleBottom) {
+          const scrollArea = document.getElementById('mainContent');
+          if (scrollArea?.contains(field)) scrollArea.scrollBy({ top: fieldRect.bottom - visibleBottom, behavior: 'smooth' });
+          else window.scrollBy({ top: fieldRect.bottom - visibleBottom, behavior: 'smooth' });
+        }
+      });
       hideGazeChoices();
     }
     function positionGazeKeyboard() {
       if (gazeKeyboard.hidden) return;
       gazeKeyboard.style.top = 'auto';
       gazeKeyboard.style.bottom = '12px';
+      const anchor = gazeKeyboardTarget?.closest('form')?.closest('.bg-white');
+      const keyboardWidth = gazeKeyboard.getBoundingClientRect().width;
+      const anchorRect = anchor?.getBoundingClientRect();
+      const centerX = anchorRect ? anchorRect.left + anchorRect.width / 2 : window.innerWidth / 2;
+      const minCenter = keyboardWidth / 2 + 12;
+      const maxCenter = window.innerWidth - minCenter;
+      gazeKeyboard.style.left = `${Math.max(minCenter, Math.min(centerX, maxCenter))}px`;
     }
     function hideGazeChoices() {
       if (gazeChoiceSelect) gazeChoiceSelect.setAttribute('aria-expanded', 'false');
@@ -754,10 +774,21 @@
     });
     window.addEventListener('resize', positionGazeKeyboard);
     window.addEventListener('scroll', positionGazeKeyboard, true);
+    let gazeDriftCorrectionActive = false;
     window.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape') return;
-      if (!gazeChoiceMenu.hidden) hideGazeChoices();
-      if (!gazeKeyboard.hidden) hideGazeKeyboard(true);
+      if (event.key === 'Escape') {
+        if (!gazeChoiceMenu.hidden) hideGazeChoices();
+        if (!gazeKeyboard.hidden) hideGazeKeyboard(true);
+        return;
+      }
+      if (event.key.toLowerCase() !== 'd' || event.repeat || event.altKey || event.ctrlKey || event.metaKey ||
+          !liveEyeTrackingActive || !liveEyeTrackingBadge.textContent.includes('LIVE')) return;
+      const focused = event.target instanceof HTMLElement ? event.target : null;
+      if (focused?.matches('input, textarea, select, [contenteditable="true"]')) return;
+      event.preventDefault();
+      gazeDriftCorrectionActive = true;
+      liveAnnouncer.textContent = 'Drift correction started. Look at the point in the centre of the screen and hold your gaze there until it disappears.';
+      callEyeTracker('driftFixGaze');
     });
     // Gaze only ever arrives once the tracker has finished calibrating (it doesn't call onGaze
     // before reaching its "tracking" state), so this generous hitbox applies specifically to
@@ -898,7 +929,13 @@
         liveEyeTrackingFrame.style.pointerEvents = 'none'; // hand the page back to the dashboard
         if (isGazeTextField(document.activeElement)) showGazeKeyboard(document.activeElement);
         else hideGazeKeyboard();
-        liveAnnouncer.textContent = 'Eye tracking ready. The keyboard is at the bottom of the screen. Hold on a control for one second; choice fields open their options.';
+        liveAnnouncer.textContent = gazeDriftCorrectionActive
+          ? 'Drift correction complete. Eye tracking is ready.'
+          : 'Eye tracking ready. The keyboard is at the bottom of the screen. Hold on a control for one second; choice fields open their options.';
+        gazeDriftCorrectionActive = false;
+      } else if (state === 'drift check') {
+        gazeCursorDot.classList.add('hidden');
+        liveAnnouncer.textContent = 'Drift correction in progress. Look at the point in the centre of the screen and hold your gaze there until it disappears.';
       } else {
         liveEyeTrackingFrame.style.pointerEvents = 'auto';
         gazeCursorDot.classList.add('hidden');
