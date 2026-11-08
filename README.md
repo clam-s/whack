@@ -20,6 +20,8 @@ Common dashboard commands run in the browser. OpenRouter interprets more loosely
 3. Run `node --env-file=.env backend/server.mjs`. The backend listens at `http://127.0.0.1:3001` by default.
 4. Open `http://127.0.0.1:3001` to use the dashboard and API on the same address.
 
+Use the localhost URL rather than opening `frontend/index.html` directly. Chrome treats `file://` microphone permissions as file-specific and may ask repeatedly. On localhost, allow microphone access once for the site; Chrome can remember that choice for later visits. Browsers always require an initial permission grant and the app cannot dismiss or bypass that browser prompt.
+
 The dashboard automatically signs in to the demo account and shows the SQLite balance and transactions separately from the example data. Use **Demo account** to sign out. Reloading signs in to the demo again.
 
 ## Voice and typed commands

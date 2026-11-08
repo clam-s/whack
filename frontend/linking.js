@@ -16,8 +16,6 @@
   const signOut = byId('linkedAccountSignOut');
   const readToggle = byId('readAloudToggle');
   const readButton = byId('readTabBtn');
-  const assistantNotice = byId('assistantNotice');
-  let assistantNoticeTimer;
   let account;
   let accountRequest;
   let readAloud = false;
@@ -26,18 +24,10 @@
   let lastPendingConfirmation = false;
   let submittedFromVoice = false;
   let pushToTalkHeld = false;
+  let queuedVoicePayments = [];
 
   function showAssistantNotice(message, state = 'info') {
-    if (!assistantNotice || !message) return;
-    clearTimeout(assistantNoticeTimer);
-    assistantNotice.textContent = message;
-    assistantNotice.hidden = false;
-    assistantNotice.className = `fixed top-[76px] right-4 z-[80] max-w-[min(28rem,calc(100vw-2rem))] rounded-lg border px-4 py-3 text-sm font-medium shadow-lg ${
-      state === 'error' ? 'border-red-200 bg-red-50 text-red-900' :
-        state === 'success' ? 'border-emerald-200 bg-white text-slate-800' :
-          'border-blue-200 bg-white text-slate-800'
-    }`;
-    if (state !== 'pending') assistantNoticeTimer = setTimeout(() => { assistantNotice.hidden = true; }, 5000);
+    if (message) commandStatus.textContent = message;
   }
 
   void window.backendFetch('/api/health').then(async (response) => {
@@ -227,9 +217,19 @@
     if (voicePaymentPending && lastPendingConfirmation && !state.pendingConfirmation) {
       if (state.notification?.type === 'success') {
         commandStatus.textContent = 'Payment entry recorded in this dashboard.';
+        if (queuedVoicePayments.length) {
+          const remaining = queuedVoicePayments.length;
+          void window.speakAgentStatus?.(`That payment entry is recorded. ${remaining} more request${remaining === 1 ? '' : 's'} need your review.`);
+          const next = queuedVoicePayments.shift();
+          voicePaymentPending = false;
+          queueMicrotask(() => prepareVoicePayment(next.page, next.draft, false));
+          lastPendingConfirmation = Boolean(state.pendingConfirmation);
+          return;
+        }
         void window.speakAgentStatus?.('The payment entry has been recorded in your transaction history.');
       } else if (state.notification?.type === 'info') {
         commandStatus.textContent = 'Payment cancelled.';
+        queuedVoicePayments = [];
         void window.speakAgentStatus?.('The payment was cancelled.');
       }
       voicePaymentPending = false;
@@ -289,7 +289,7 @@
     return true;
   }
 
-  function prepareVoicePayment(page, draft) {
+  function prepareVoicePayment(page, draft, speak = true) {
     try {
       if (page === 'send-money') {
         window.appStore.requestSendMoney(draft.recipient, draft.amount, draft.note || '', 'checking');
@@ -304,7 +304,7 @@
       window.setVoiceState('confirming');
       // Keep recipient, amount, and memo out of Fish Audio TTS. The accessible confirmation dialog
       // presents the exact details locally; Fish speaks only this generic status prompt.
-      void window.speakAgentStatus?.('Your payment is ready for review. Please check the details, then confirm or cancel whenever you are ready.');
+      if (speak) void window.speakAgentStatus?.('Your payment is ready for review. Please check the details, then confirm or cancel whenever you are ready.');
     } catch (error) {
       commandStatus.textContent = error.message;
       void window.speakAgentStatus?.('I could not prepare that payment just now. Please review the message on screen and try again.');
@@ -389,6 +389,14 @@
     );
   }
 
+  function visibleScreenContext() {
+    const view = byId('viewContainer');
+    if (!view) return '';
+    const page = viewLabels.get(getState().currentPage) || '';
+    const text = view.innerText.replace(/\n{3,}/g, '\n\n').trim().slice(0, 3500);
+    return [page && `Current page: ${page}`, text].filter(Boolean).join('\n');
+  }
+
   function buttonLabel(button) {
     return button.dataset.voiceLabel || button.innerText.trim() || button.getAttribute('aria-label') || '';
   }
@@ -425,6 +433,18 @@
       .replace(/^(?:(?:can|could|would) you )?(?:please )?/, '').replace(/,? please$/, '');
     const commandPhrase = text.replace(/\s+/g, ' ').trim().replace(/[.!?,]+$/, '').trimEnd()
       .replace(/^(?:(?:can|could|would) you )?(?:please )?/i, '').replace(/,? please$/i, '');
+    const cardLockRequest = phrase.match(/^(lock|freeze|unlock|unfreeze) (?:(?:my|the) )?(?:(?:credit|bank) )?card(?: now)?$/);
+    if (cardLockRequest) {
+      const shouldLock = ['lock', 'freeze'].includes(cardLockRequest[1]);
+      const card = getState().accounts.credit;
+      if (card.locked === shouldLock) {
+        commandStatus.textContent = `Your credit card is already ${shouldLock ? 'locked' : 'unlocked'}.`;
+      } else {
+        window.appStore.toggleCardLock('credit');
+        commandStatus.textContent = `Your credit card is now ${shouldLock ? 'locked' : 'unlocked'}.`;
+      }
+      return true;
+    }
     const button = commandPhrase.match(/^(?:click|press|select) (.+)$/i);
     if (button && clickNamedButton(button[1])) return true;
     const money = commandPhrase.match(/^(transfer|move|send) (?:\$\s*)?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)(?: (?:dollars?|usd))? (.+)$/i);
@@ -493,7 +513,7 @@
         : commandStatus.textContent || 'Dashboard action completed.';
       showAssistantNotice(localOutcome, 'success');
       if (fromVoice) logVoiceActivity('Handled by a local dashboard action.');
-      if (fromVoice && !voicePaymentPending) void window.speakAgentStatus?.('Certainly. I have completed that dashboard request.');
+      if (fromVoice && !voicePaymentPending) void window.speakAgentStatus?.(localOutcome);
       return;
     }
     sendButton.disabled = true;
@@ -505,15 +525,49 @@
       const page = getState().currentPage;
       const controls = availableButtons().map((button) => ({ button, label: describeButton(button) }))
         .filter(({ label }) => label && label.length <= 200).slice(0, 100);
-      const result = await post('/api/intent', { text, controls: controls.map(({ label }) => label) });
+      const result = await post('/api/intent', {
+        text,
+        context: visibleScreenContext(),
+        controls: controls.map(({ label }) => label),
+      });
       if (fromVoice) logVoiceActivity(`OpenRouter returned ${result.responseCode || 'a response'}.`);
-      if (result.responseCode === 'RESPONSE_CLICK_CONTROL') {
+      if (result.responseCode === 'RESPONSE_ANSWER_FROM_CONTEXT') {
+        commandStatus.textContent = result.message;
+        if (fromVoice) void window.speakAgentStatus?.(result.message);
+      } else if (result.responseCode === 'RESPONSE_MULTI_ACTION') {
+        const spoken = [];
+        const payments = [];
+        for (const action of result.actions || []) {
+          if (action.responseCode === 'RESPONSE_ANSWER_FROM_CONTEXT') {
+            spoken.push(action.message);
+          } else if (action.responseCode === 'RESPONSE_OPEN_SEND_MONEY' && action.draft && fromVoice) {
+            payments.push({ page: 'send-money', draft: action.draft });
+          } else if (action.responseCode === 'RESPONSE_OPEN_TRANSFER' && action.draft && fromVoice) {
+            payments.push({ page: 'transfer', draft: action.draft });
+          } else if (openDestination(action.responseCode, action)) {
+            spoken.push(action.message || commandStatus.textContent);
+          } else {
+            spoken.push(action.message || 'I could not match one part of that request.');
+          }
+        }
+        if (payments.length && fromVoice) {
+          queuedVoicePayments = payments.slice(1);
+          commandStatus.textContent = `${payments.length} payment requests are ready. Review and confirm each one in turn.`;
+          const contextAnswers = spoken.filter(Boolean).join(' ');
+          const paymentSummary = `I’ve prepared ${payments.length} payment request${payments.length === 1 ? '' : 's'}. Please review each one in turn.`;
+          void window.speakAgentStatus?.([contextAnswers, paymentSummary].filter(Boolean).join(' '));
+          prepareVoicePayment(payments[0].page, payments[0].draft, false);
+        } else {
+          commandStatus.textContent = result.message || spoken.join(' ');
+          if (fromVoice) void window.speakAgentStatus?.(result.message || spoken.join(' '));
+        }
+      } else if (result.responseCode === 'RESPONSE_CLICK_CONTROL') {
         const selected = Number.isInteger(result.controlIndex) ? controls[result.controlIndex] : undefined;
         if (selected && getState().currentPage === page && availableButtons().includes(selected.button) &&
             describeButton(selected.button) === selected.label) {
           activateButton(selected.button);
           if (fromVoice) logVoiceActivity('Dashboard control selected.');
-          void window.speakAgentStatus?.('Certainly. I have selected that option for you.');
+          void window.speakAgentStatus?.(`Selected ${selected.label}.`);
         } else {
           commandStatus.textContent = 'That control is no longer available. Try the command again.';
           commandFailed = true;
@@ -529,10 +583,11 @@
         commandStatus.textContent = result.message || 'Try one dashboard action, such as “open savings” or “show recent transactions”.';
         commandFailed = true;
         window.setVoiceState('error');
+        if (fromVoice) void window.speakAgentStatus?.(commandStatus.textContent);
         if (fromVoice) logVoiceActivity('No matching dashboard action was found.');
       } else if (!voicePaymentPending) {
         if (fromVoice) logVoiceActivity('Dashboard action completed.');
-        void window.speakAgentStatus?.('Of course. I have completed that dashboard request.');
+        void window.speakAgentStatus?.(result.message || summarizeIntentResult(result.responseCode, result));
       }
       if (commandFailed) showAssistantNotice(commandStatus.textContent, 'error');
       else showAssistantNotice(summarizeIntentResult(result.responseCode, result), 'success');
@@ -899,6 +954,11 @@
       return;
     }
     if (sendButton.disabled) return;
+    if (location.protocol === 'file:') {
+      commandStatus.textContent = 'Open the dashboard at http://localhost:3001 so Chrome can remember microphone permission for this site.';
+      window.setVoiceState('error');
+      return;
+    }
     voiceSession = { transcript: '', cancelled: false, stopping: false };
     sendButton.disabled = true;
     document.body.classList.add('voice-listening');

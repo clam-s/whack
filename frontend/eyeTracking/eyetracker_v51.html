@@ -671,6 +671,7 @@ if (new URLSearchParams(location.search).get("embed") === "1") {
 
   const embedStyle = document.createElement("style");
   embedStyle.textContent = `
+    #bar { display: none !important; }
     /* Move the control bar off the dashboard's logo (top-left) and give it the dashboard's own
        light, pill-button look instead of the standalone tool's dark glass panel. */
     #bar { top: auto !important; bottom: 14px !important; left: 14px !important; gap: 10px; }

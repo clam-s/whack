@@ -192,7 +192,7 @@
     }
   </style>
 </head>
-<body class="bg-c1-bg text-c1-textPrimary font-sans min-h-screen flex flex-col antialiased selection:bg-c1-lightNavy selection:text-white">
+<body class="bg-c1-bg text-c1-textPrimary font-sans min-h-screen flex flex-col antialiased selection:bg-c1-lightNavy selection:text-white lg:h-screen lg:overflow-hidden">
 
   <!-- ================= ACCESSIBILITY LIVE ANNOUNCER ================= -->
   <div id="liveAnnouncer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
@@ -244,19 +244,6 @@
           Recalibrate
         </button>
 
-        <!-- Global Text-to-Speech Account Reader Button -->
-        <button
-          data-voice-label="Listen Aloud" id="speakAccountBtn"
-          class="inline-flex items-center space-x-1.5 px-3 py-2 rounded-md border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold text-xs min-h-[44px] transition"
-          aria-label="Speak account balance and summary aloud using speech synthesis"
-          title="Audio Accessibility: Read account balance and overview aloud"
-        >
-          <svg class="w-4 h-4 text-emerald-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-          </svg>
-          <span class="hidden sm:inline">Listen Aloud</span>
-        </button>
-
         <!-- Compact voice assistant control -->
         <button
           data-voice-label="Voice Assistant" id="voiceAssistantBtn"
@@ -282,8 +269,6 @@
       </div>
     </div>
   </header>
-
-  <div id="assistantNotice" hidden role="status" aria-live="polite" class="fixed top-[76px] right-4 z-[80] max-w-[min(28rem,calc(100vw-2rem))] rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 shadow-lg"></div>
 
   <!-- Non-visual controls used by the top-bar voice assistant and accessibility helpers. -->
   <div
@@ -319,11 +304,11 @@
   </div>
 
   <!-- ================= MAIN LAYOUT CONTAINER ================= -->
-  <div class="flex-1 max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+  <div id="mainLayout" class="flex-1 min-h-0 max-w-[1720px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 lg:overflow-hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 h-full min-h-0">
 
       <!-- ================= NAVIGATION LANDMARK (SIDEBAR) ================= -->
-      <nav class="lg:col-span-3 xl:col-span-2 space-y-4" role="navigation" aria-label="Accounts and Banking Navigation">
+      <nav class="lg:col-span-3 xl:col-span-2 space-y-4 lg:h-full lg:overflow-y-auto lg:overscroll-contain" role="navigation" aria-label="Accounts and Banking Navigation">
         
         <!-- Account list buttons -->
         <div class="space-y-1.5" role="menubar">
@@ -409,7 +394,7 @@
       </nav>
 
       <!-- ================= MAIN CONTENT LANDMARK ================= -->
-      <main id="mainContent" class="lg:col-span-9 xl:col-span-10 min-h-[550px]" role="main" tabindex="-1">
+      <main id="mainContent" class="lg:col-span-9 xl:col-span-10 min-h-[550px] lg:h-full lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain" role="main" tabindex="-1">
         
         <section id="linkedAccountPanel" hidden class="card bg-white rounded-xl border border-slate-200 p-5 mb-4" aria-labelledby="linkedAccountHeading">
           <h2 id="linkedAccountHeading" class="font-bold">Linked account</h2>
@@ -585,8 +570,6 @@
     const voiceStatusIndicatorDot = document.getElementById('voiceStatusIndicatorDot');
 
     // --- Live eye tracking and gaze dwell selection ---
-    const speakAccountBtn = document.getElementById('speakAccountBtn');
-
     // --- Live Webcam Eye Tracking Bridge (frontend/eyeTracking/eyetracker_v51.html) ---
     // Same-origin iframe, so the tracker calls window.parent.__onExternalGaze / __onTrackerState
     // directly instead of postMessage. See the iframe element above for the click-through rationale.
@@ -1092,17 +1075,6 @@
         window.dispatchEvent(new CustomEvent('voice-agent-speech', { detail: { status: 'fallback', message: error.message } }));
       }
     };
-
-    // Speak Entire Account Summary
-    speakAccountBtn?.addEventListener('click', () => {
-      const st = getState();
-      const ch = st.accounts.checking;
-      const card = st.accounts.credit;
-      const loan = st.accounts.loans;
-      const msg = `Hello LP. Here is your Capital One account overview. Your available checking balance is $${ch.balance.toFixed(2)}. Your Venture X credit card balance is $${card.balance.toFixed(2)} with $${card.availableCredit.toFixed(2)} in available credit, and your card is currently ${card.locked ? 'locked' : 'active'}. You have an upcoming auto loan payment of $${loan.monthlyPayment.toFixed(2)} due soon.`;
-      speakText(msg);
-      liveAnnouncer.textContent = msg;
-    });
 
     // Compact voice status stays in the top bar.
     const voiceStates = {
