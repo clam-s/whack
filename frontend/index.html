@@ -132,38 +132,29 @@
     }
 
     /* Give pointer and keyboard users clear, consistent feedback on every control. */
-    button, a, [data-nav] {
-      transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
-    }
-    @keyframes controlHoverExpand {
-      0% { transform: scale(1); }
-      65% { transform: scale(1.09) translateY(-3px); }
-      100% { transform: scale(1.05) translateY(-2px); }
-    }
-    @keyframes gazeTargetExpand {
-      0% { transform: scale(1); }
-      65% { transform: scale(1.11) translateY(-4px); }
-      100% { transform: scale(1.06) translateY(-2px); }
+    button:not(:disabled), a[href], [data-nav] {
+      transition: transform 520ms cubic-bezier(.2,.8,.2,1),
+        box-shadow 520ms cubic-bezier(.2,.8,.2,1), background-color 180ms ease;
+      transform-origin: center;
     }
     @media (hover: hover) {
       button:not(:disabled):hover, a:hover, [data-nav]:hover {
         position: relative;
         z-index: 25;
-        transform: scale(1.05) translateY(-2px);
+        transform: scale(1.1) translateY(-1px);
         box-shadow: 0 8px 18px -8px rgba(0, 30, 60, 0.32);
-        animation: controlHoverExpand 240ms cubic-bezier(.2,.8,.2,1) both;
       }
     }
     button:not(:disabled):focus-visible, a:focus-visible, [data-nav]:focus-visible,
     .gaze-active-target {
       position: relative;
       z-index: 25;
-      transform: scale(1.07) translateY(-3px);
+      transform: scale(1.1) translateY(-1px);
       box-shadow: 0 10px 22px -8px rgba(0, 30, 60, 0.32);
     }
     .gaze-active-target {
-      transition: transform 180ms ease-out, box-shadow 180ms ease-out, filter 70ms linear;
-      animation: gazeTargetExpand 260ms cubic-bezier(.2,.8,.2,1) both;
+      transition: transform 520ms cubic-bezier(.2,.8,.2,1),
+        box-shadow 520ms cubic-bezier(.2,.8,.2,1), filter 70ms linear !important;
       will-change: transform;
     }
     #brandLogoLink, #brandLogoLink:hover, #brandLogoLink:focus-visible,
